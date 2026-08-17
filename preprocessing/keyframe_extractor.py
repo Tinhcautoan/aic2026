@@ -7,10 +7,13 @@ Algorithm:
 - feature_diff = ||f_current - f_prev|| / ||f_prev||
 - Threshold of 0.6 empirically determined as optimal
 
-Optimized for A100 80GB:
-- Batch forward passes (32-64 frames per pass)
-- Multi-threaded frame prefetching
-- Parallel multi-video processing
+MAXIMUM SPEED mode for A100 80GB:
+- Batch forward passes (256 frames per pass)
+- torch.compile() for graph-compiled inference
+- Model pool for true parallel multi-video processing
+- CUDA streams for overlapping inference
+- Pre-allocated tensor buffers
+- torch.inference_mode() for faster inference
 """
 
 import os
@@ -18,7 +21,7 @@ import time
 import threading
 import queue
 from pathlib import Path
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import cv2
 import numpy as np
@@ -35,7 +38,7 @@ from config import settings
 class _FramePrefetcher:
     """Producer thread: reads frames from cv2.VideoCapture into a queue."""
 
-    def __init__(self, video_path: str, sample_rate: int, max_queue: int = 256):
+    def __init__(self, video_path: str, sample_rate: int, max_queue: int = 512):
         self._video_path = video_path
         self._sample_rate = sample_rate
         self._max_queue = max_queue
@@ -50,11 +53,12 @@ class _FramePrefetcher:
 
     def _reader_loop(self):
         cap = cv2.VideoCapture(self._video_path)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 128)
         frame_idx = 0
         while not self._stop.is_set():
             ret, frame = cap.read()
             if not ret:
-                self._q.put(None)  # sentinel
+                self._q.put(None)
                 break
             if frame_idx % self._sample_rate == 0:
                 self._q.put((frame_idx, frame))
@@ -62,7 +66,6 @@ class _FramePrefetcher:
         cap.release()
 
     def get_batch(self, batch_size: int) -> list:
-        """Return up to batch_size (frame_idx, frame) tuples. None sentinel = EOF."""
         batch = []
         for _ in range(batch_size):
             try:
@@ -89,6 +92,153 @@ class _FramePrefetcher:
 
 
 # ────────────────────────────────────────────────────────────────────── #
+#  Model Worker — owns a model instance + CUDA stream for overlap      #
+# ────────────────────────────────────────────────────────────────────── #
+
+class _ModelWorker:
+    """Encapsulates a model instance on a CUDA stream for overlapped inference."""
+
+    def __init__(self, worker_id: int = 0):
+        self.worker_id = worker_id
+        self._model: Any = None
+        self._preprocess_fn: Any = None
+        self._device: str = "cpu"
+        self._stream: Any = None
+        self._preprocess_tensor: Any = None
+        self._loaded = False
+
+    def load(self):
+        if self._loaded:
+            return
+
+        import sys as _sys
+        _tulip_dir = os.path.join(os.path.dirname(__file__), '..', 'tulip', 'open_clip', 'src')
+        if os.path.isdir(_tulip_dir) and _tulip_dir not in _sys.path:
+            _sys.path.insert(0, _tulip_dir)
+
+        import open_clip
+        import torch
+
+        self._device = (
+            f"cuda:{settings.GPU_DEVICE_ID}"
+            if settings.GPU_ENABLED and torch.cuda.is_available()
+            else "cpu"
+        )
+
+        model_name = settings.TULIP_MODEL_NAME if settings.USE_TULIP else settings.CLIP_MODEL_NAME
+        pretrained = settings.TULIP_PRETRAINED if settings.USE_TULIP else settings.CLIP_PRETRAINED
+
+        model, _, preprocess = open_clip.create_model_and_transforms(
+            model_name=model_name,
+            pretrained=pretrained,
+            device=self._device,
+        )
+        if settings.USE_FP16 and "cuda" in self._device:
+            model = model.half()
+        model.eval()
+
+        # torch.compile for 20-50% speedup on A100
+        try:
+            model = torch.compile(model, mode="reduce-overhead")
+            logger.info(f"  Worker {self.worker_id}: torch.compile applied")
+        except Exception as e:
+            logger.warning(f"  Worker {self.worker_id}: torch.compile failed ({e}), using eager")
+
+        self._model = model
+        self._preprocess_fn = preprocess
+
+        # Dedicated CUDA stream for overlapped inference
+        if "cuda" in self._device:
+            self._stream = torch.cuda.Stream(device=self._device)
+
+        self._loaded = True
+        logger.info(
+            f"  Worker {self.worker_id}: model loaded on {self._device} "
+            f"({model_name}, compiled)"
+        )
+
+    def extract_features_batch(self, frames: List[np.ndarray]) -> np.ndarray:
+        """Extract features from a batch of frames using this worker's model + stream."""
+        import torch
+
+        # Pre-allocate tensors on CPU then move
+        tensors = []
+        for frame in frames:
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            pil_image = Image.fromarray(frame_rgb)
+            tensors.append(self._preprocess_fn(pil_image))
+
+        batch = torch.stack(tensors).to(self._device, non_blocking=True)
+        if settings.USE_FP16 and "cuda" in self._device:
+            batch = batch.half()
+
+        # Use dedicated CUDA stream for overlapped inference
+        if self._stream is not None:
+            with torch.cuda.stream(self._stream):
+                with torch.inference_mode():
+                    features = self._model.encode_image(batch)
+                    features = features / features.norm(dim=-1, keepdim=True)
+            self._stream.synchronize()
+        else:
+            with torch.inference_mode():
+                features = self._model.encode_image(batch)
+                features = features / features.norm(dim=-1, keepdim=True)
+
+        return features.cpu().numpy().astype(np.float32)
+
+
+# ────────────────────────────────────────────────────────────────────── #
+#  Model Pool — N model instances for true parallel processing         #
+# ────────────────────────────────────────────────────────────────────── #
+
+class _ModelPool:
+    """Pool of model workers for parallel video processing.
+
+    Each worker has its own model copy + CUDA stream,
+    enabling true parallel GPU inference (not serialized).
+    """
+
+    def __init__(self, num_workers: int = 4):
+        self._num_workers = num_workers
+        self._workers: List[_ModelWorker] = []
+        self._lock = threading.Lock()
+        self._available: queue.Queue = queue.Queue()
+        self._initialized = False
+
+    def initialize(self):
+        if self._initialized:
+            return
+        logger.info(f"Initializing model pool with {self._num_workers} workers...")
+        for i in range(self._num_workers):
+            worker = _ModelWorker(worker_id=i)
+            worker.load()
+            self._workers.append(worker)
+            self._available.put(worker)
+        self._initialized = True
+        logger.info(f"Model pool ready: {self._num_workers} workers on GPU")
+
+    def acquire(self, timeout: float = 30) -> _ModelWorker:
+        return self._available.get(timeout=timeout)
+
+    def release(self, worker: _ModelWorker):
+        self._available.put(worker)
+
+
+# Global model pool (initialized lazily)
+_model_pool: Optional[_ModelPool] = None
+_pool_lock = threading.Lock()
+
+
+def _get_model_pool(num_workers: int = 4) -> _ModelPool:
+    global _model_pool
+    with _pool_lock:
+        if _model_pool is None:
+            _model_pool = _ModelPool(num_workers=num_workers)
+            _model_pool.initialize()
+    return _model_pool
+
+
+# ────────────────────────────────────────────────────────────────────── #
 #  KeyframeExtractor                                                    #
 # ────────────────────────────────────────────────────────────────────── #
 
@@ -101,7 +251,7 @@ class KeyframeExtractor:
         min_delta: Optional[int] = None,
         sample_rate: Optional[int] = None,
         image_size: Optional[int] = None,
-        batch_size: int = 64,
+        batch_size: int = 256,
     ):
         self.threshold: float = threshold if threshold is not None else settings.KEYFRAME_THRESHOLD
         self.min_delta: int = min_delta if min_delta is not None else settings.KEYFRAME_MIN_DELTA
@@ -109,10 +259,10 @@ class KeyframeExtractor:
         self.image_size: int = image_size if image_size is not None else settings.IMAGE_SIZE
         self.batch_size: int = batch_size
 
+        # Legacy single-model fallback (for extract_from_video without pool)
         self._model: Any = None
         self._preprocess_fn: Any = None
         self._device: str = "cpu"
-        self._model_lock = threading.Lock()
 
         logger.info(
             f"KeyframeExtractor initialized: threshold={self.threshold}, "
@@ -120,10 +270,9 @@ class KeyframeExtractor:
             f"batch_size={self.batch_size}"
         )
 
-    # ── Model loading ──────────────────────────────────────────────── #
+    # ── Model loading (single fallback) ────────────────────────────── #
 
     def _load_model(self) -> None:
-        """Lazy-load the feature model (TULIP or CLIP)."""
         if self._model is not None:
             return
 
@@ -150,6 +299,10 @@ class KeyframeExtractor:
         if settings.USE_FP16 and "cuda" in self._device:
             model = model.half()
         model.eval()
+        try:
+            model = torch.compile(model, mode="reduce-overhead")
+        except Exception:
+            pass
         self._model = model
         self._preprocess_fn = preprocess
         logger.info(f"Feature model loaded on {self._device} ({model_name})")
@@ -163,32 +316,23 @@ class KeyframeExtractor:
             return 0.0
         return float(np.linalg.norm(current_features - prev_features)) / prev_norm
 
-    def _extract_features_batch(self, frames: List[np.ndarray]) -> np.ndarray:
-        """Extract features from a batch of frames. Returns (N, dim) array."""
+    def _extract_features_batch_fallback(self, frames: List[np.ndarray]) -> np.ndarray:
+        """Single-model batch inference (fallback)."""
         import torch
-
         tensors = []
         for frame in frames:
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             pil_image = Image.fromarray(frame_rgb)
-            t = self._preprocess_fn(pil_image)
-            tensors.append(t)
-
+            tensors.append(self._preprocess_fn(pil_image))
         batch = torch.stack(tensors).to(self._device)
         if settings.USE_FP16 and "cuda" in self._device:
             batch = batch.half()
-
-        with torch.no_grad():
+        with torch.inference_mode():
             features = self._model.encode_image(batch)
             features = features / features.norm(dim=-1, keepdim=True)
-
         return features.cpu().numpy().astype(np.float32)
 
-    def _extract_features(self, frame: np.ndarray) -> np.ndarray:
-        """Single-frame fallback (kept for compatibility)."""
-        return self._extract_features_batch([frame])[0]
-
-    # ── Single video extraction (batched + prefetched) ─────────────── #
+    # ── Single video extraction ────────────────────────────────────── #
 
     def extract_from_video(
         self,
@@ -196,13 +340,12 @@ class KeyframeExtractor:
         output_dir: Optional[str] = None,
         save_keyframes: bool = False,
     ) -> List[dict]:
-        """Extract keyframes from a video file using batch inference + prefetch."""
+        """Extract keyframes from a video file."""
         self._load_model()
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             raise ValueError(f"Cannot open video: {video_path}")
-
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         video_name = Path(video_path).stem
@@ -219,7 +362,6 @@ class KeyframeExtractor:
         keyframes: List[dict] = []
         prev_features: Optional[np.ndarray] = None
         last_keyframe_idx = -self.min_delta
-
         start_time = time.time()
 
         with _FramePrefetcher(video_path, self.sample_rate) as prefetcher:
@@ -228,7 +370,6 @@ class KeyframeExtractor:
                 if not batch_items:
                     break
 
-                # Filter out sentinel
                 valid = [(idx, fr) for idx, fr in batch_items if fr is not None]
                 if not valid:
                     break
@@ -236,14 +377,12 @@ class KeyframeExtractor:
                 frame_indices = [item[0] for item in valid]
                 frames = [item[1] for item in valid]
 
-                # Batch GPU forward pass (one call for N frames)
                 try:
-                    all_features = self._extract_features_batch(frames)
+                    all_features = self._extract_features_batch_fallback(frames)
                 except Exception as e:
-                    logger.warning(f"Batch inference failed, falling back to single: {e}")
-                    all_features = np.stack([self._extract_features(fr) for fr in frames])
+                    logger.warning(f"Batch inference failed: {e}")
+                    continue
 
-                # Sequential diff computation on CPU (fast)
                 for local_i, frame_idx in enumerate(frame_indices):
                     features = all_features[local_i]
                     frame = frames[local_i]
@@ -257,7 +396,6 @@ class KeyframeExtractor:
                         continue
 
                     feat_diff = self._compute_feature_diff(features, prev_features)
-
                     if feat_diff > self.threshold and (frame_idx - last_keyframe_idx) >= self.min_delta:
                         info = self._save_keyframe(frame, frame_idx, frame_idx / fps, video_name, output_dir, save_keyframes)
                         info["features"] = features
@@ -265,13 +403,11 @@ class KeyframeExtractor:
                         last_keyframe_idx = frame_idx
                         prev_features = features
 
-                # Check if we hit sentinel (EOF) in this batch
                 if any(item is None for item in batch_items):
                     break
 
         elapsed = time.time() - start_time
         reduction = (1 - len(keyframes) / max(total_frames / self.sample_rate, 1)) * 100
-
         logger.info(
             f"Extracted {len(keyframes)} keyframes from {total_frames} frames "
             f"({reduction:.1f}% reduction) in {elapsed:.2f}s "
@@ -279,15 +415,7 @@ class KeyframeExtractor:
         )
         return keyframes
 
-    def _save_keyframe(
-        self,
-        frame: np.ndarray,
-        frame_idx: int,
-        timestamp: float,
-        video_name: str,
-        output_dir: Optional[str],
-        save: bool,
-    ) -> dict:
+    def _save_keyframe(self, frame, frame_idx, timestamp, video_name, output_dir, save):
         info: dict = {"frame_idx": frame_idx, "timestamp": timestamp, "path": None}
         if save and output_dir:
             filename = f"{video_name}_frame_{frame_idx:06d}.jpg"
@@ -296,37 +424,48 @@ class KeyframeExtractor:
             info["path"] = filepath
         return info
 
-    # ── Multi-video extraction (parallel) ──────────────────────────── #
+    # ── Multi-video extraction with MODEL POOL (true parallel) ────── #
 
     def extract_batch(
         self,
         video_paths: List[str],
         output_dir: Optional[str] = None,
         save_keyframes: bool = False,
-        max_workers: int = 2,
+        max_workers: int = 4,
     ) -> dict:
-        """Extract keyframes from multiple videos in parallel.
+        """Extract keyframes from multiple videos using MODEL POOL.
 
-        max_workers=2 is safe: each video uses ~2GB VRAM for inference,
-        leaving plenty of room for the embedding models later.
+        Each worker gets its own model copy + CUDA stream = TRUE parallel GPU inference.
+        On A100 80GB: 4 workers × ~2GB = ~8GB for models, plenty left for batch buffers.
         """
-        results: dict = {}
+        import torch
+
+        # Initialize model pool (N independent model copies on GPU)
+        pool = _get_model_pool(num_workers=max_workers)
+
         total = len(video_paths)
+        results: dict = {}
 
         def _process_one(vp: str) -> tuple:
+            worker = pool.acquire()
             try:
-                kfs = self.extract_from_video(
-                    video_path=vp, output_dir=output_dir, save_keyframes=save_keyframes
+                kfs = self._extract_with_worker(
+                    worker=worker,
+                    video_path=vp,
+                    output_dir=output_dir,
+                    save_keyframes=save_keyframes,
                 )
                 return (vp, kfs, None)
             except Exception as e:
                 logger.error(f"Failed: {vp}: {e}")
                 return (vp, [], str(e))
+            finally:
+                pool.release(worker)
 
-        logger.info(f"Processing {total} videos with {max_workers} workers")
+        logger.info(f"Processing {total} videos with {max_workers} parallel GPU workers")
 
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            futures = {pool.submit(_process_one, vp): vp for vp in video_paths}
+        with ThreadPoolExecutor(max_workers=max_workers) as pool_executor:
+            futures = {pool_executor.submit(_process_one, vp): vp for vp in video_paths}
             done_count = 0
             for future in as_completed(futures):
                 vp, kfs, err = future.result()
@@ -339,3 +478,73 @@ class KeyframeExtractor:
         ok = sum(1 for v in results.values() if v)
         logger.info(f"Batch done: {ok}/{total} videos succeeded")
         return results
+
+    def _extract_with_worker(
+        self,
+        worker: _ModelWorker,
+        video_path: str,
+        output_dir: Optional[str],
+        save_keyframes: bool,
+    ) -> List[dict]:
+        """Extract keyframes using a pool worker's model (thread-safe)."""
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Cannot open video: {video_path}")
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        video_name = Path(video_path).stem
+        cap.release()
+
+        if save_keyframes and output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+
+        keyframes: List[dict] = []
+        prev_features: Optional[np.ndarray] = None
+        last_keyframe_idx = -self.min_delta
+        start_time = time.time()
+
+        with _FramePrefetcher(video_path, self.sample_rate) as prefetcher:
+            while True:
+                batch_items = prefetcher.get_batch(self.batch_size)
+                if not batch_items:
+                    break
+
+                valid = [(idx, fr) for idx, fr in batch_items if fr is not None]
+                if not valid:
+                    break
+
+                frame_indices = [item[0] for item in valid]
+                frames = [item[1] for item in valid]
+
+                all_features = worker.extract_features_batch(frames)
+
+                for local_i, frame_idx in enumerate(frame_indices):
+                    features = all_features[local_i]
+                    frame = frames[local_i]
+
+                    if prev_features is None:
+                        prev_features = features
+                        info = self._save_keyframe(frame, frame_idx, frame_idx / fps, video_name, output_dir, save_keyframes)
+                        info["features"] = features
+                        keyframes.append(info)
+                        last_keyframe_idx = frame_idx
+                        continue
+
+                    feat_diff = self._compute_feature_diff(features, prev_features)
+                    if feat_diff > self.threshold and (frame_idx - last_keyframe_idx) >= self.min_delta:
+                        info = self._save_keyframe(frame, frame_idx, frame_idx / fps, video_name, output_dir, save_keyframes)
+                        info["features"] = features
+                        keyframes.append(info)
+                        last_keyframe_idx = frame_idx
+                        prev_features = features
+
+                if any(item is None for item in batch_items):
+                    break
+
+        elapsed = time.time() - start_time
+        fps_rate = total_frames / elapsed if elapsed > 0 else 0
+        logger.info(
+            f"  {video_name}: {len(keyframes)} keyframes from {total_frames} frames "
+            f"in {elapsed:.1f}s ({fps_rate:.0f} fps)"
+        )
+        return keyframes

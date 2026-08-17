@@ -111,7 +111,7 @@ class PreprocessingPipeline:
             "processing_time": elapsed, "status": "success",
         }
 
-    def process_batch(self, video_paths: List[str], save_keyframes: bool = False) -> List[dict]:
+    def process_batch(self, video_paths: List[str], save_keyframes: bool = False, max_workers: int = 4) -> List[dict]:
         results = []
         for vp in video_paths:
             try:
