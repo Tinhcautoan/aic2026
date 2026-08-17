@@ -370,7 +370,7 @@ class KeyframeExtractor:
                 if not batch_items:
                     break
 
-                valid = [(idx, fr) for idx, fr in batch_items if fr is not None]
+                valid = [item for item in batch_items if item is not None]
                 if not valid:
                     break
 
@@ -509,7 +509,7 @@ class KeyframeExtractor:
                 if not batch_items:
                     break
 
-                valid = [(idx, fr) for idx, fr in batch_items if fr is not None]
+                valid = [item for item in batch_items if item is not None]
                 if not valid:
                     break
 
