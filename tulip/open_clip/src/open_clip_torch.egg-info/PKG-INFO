@@ -1,0 +1,46 @@
+Metadata-Version: 2.4
+Name: open_clip_torch
+Version: 2.24.0
+Summary: OpenCLIP
+Home-page: https://github.com/mlfoundations/open_clip
+Author: 
+Author-email: 
+Keywords: CLIP pretrained
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Education
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch>=2.0.0
+Requires-Dist: torchvision
+Requires-Dist: regex
+Requires-Dist: ftfy
+Requires-Dist: tqdm
+Requires-Dist: huggingface_hub
+Requires-Dist: safetensors
+Requires-Dist: timm
+Provides-Extra: training
+Requires-Dist: torch>=2.0.0; extra == "training"
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license-file
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# TULIP Open CLIP

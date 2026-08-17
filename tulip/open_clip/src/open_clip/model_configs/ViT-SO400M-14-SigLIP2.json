@@ -1,0 +1,18 @@
+{
+    "embed_dim": 1152,
+    "vision_cfg": {
+        "image_size": 224,
+        "layers": 27,
+        "width": 1152,
+        "patch_size": 14,
+        "output_dict": true,
+        "pool_type": "map"
+    },
+    "text_cfg": {
+        "context_length": 256,
+        "vocab_size": 32064,
+        "width": 1152,
+        "heads": 16,
+        "layers": 27
+    }
+}

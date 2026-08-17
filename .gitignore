@@ -1,0 +1,24 @@
+# Video data (quá lớn cho GitHub)
+data/videos/
+data/keyframes/
+data/persistent_store/
+data/cache/
+
+# Model checkpoints
+checkpoints/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Environment
+.env
+
+# Logs
+*.log
+
+# Submission output
+submission/

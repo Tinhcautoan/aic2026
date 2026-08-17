@@ -1,0 +1,11 @@
+torch>=2.0.0
+torchvision
+regex
+ftfy
+tqdm
+huggingface_hub
+safetensors
+timm
+
+[training]
+torch>=2.0.0

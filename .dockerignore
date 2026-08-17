@@ -1,0 +1,42 @@
+# Python virtual environment (huge - don't copy)
+venv/
+.venv/
+env/
+
+# Data (videos, extracted keyframes, cache)
+data/videos/*
+data/keyframes/*
+data/cache/*
+!data/videos/.gitkeep
+!data/keyframes/.gitkeep
+!data/cache/.gitkeep
+
+# TULIP source (not needed in Docker)
+tulip/
+tulip/open_clip/
+
+# Cache & temp
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# HuggingFace cache
+*.safetensors
+.cache/
+
+# Testing
+tests/

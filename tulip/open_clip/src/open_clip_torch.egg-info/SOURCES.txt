@@ -1,0 +1,9 @@
+LICENSE
+MANIFEST.in
+README.md
+setup.py
+src/open_clip_torch.egg-info/PKG-INFO
+src/open_clip_torch.egg-info/SOURCES.txt
+src/open_clip_torch.egg-info/dependency_links.txt
+src/open_clip_torch.egg-info/requires.txt
+src/open_clip_torch.egg-info/top_level.txt
