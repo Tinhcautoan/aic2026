@@ -20,6 +20,7 @@ import os
 import time
 import threading
 import queue
+import traceback
 from pathlib import Path
 from typing import List, Optional, Any, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -103,8 +104,6 @@ class _ModelWorker:
         self._model: Any = None
         self._preprocess_fn: Any = None
         self._device: str = "cpu"
-        self._stream: Any = None
-        self._preprocess_tensor: Any = None
         self._loaded = False
 
     def load(self):
@@ -137,19 +136,8 @@ class _ModelWorker:
             model = model.half()
         model.eval()
 
-        # torch.compile for 20-50% speedup on A100
-        try:
-            model = torch.compile(model, mode="reduce-overhead")
-            logger.info(f"  Worker {self.worker_id}: torch.compile applied")
-        except Exception as e:
-            logger.warning(f"  Worker {self.worker_id}: torch.compile failed ({e}), using eager")
-
         self._model = model
         self._preprocess_fn = preprocess
-
-        # Dedicated CUDA stream for overlapped inference
-        if "cuda" in self._device:
-            self._stream = torch.cuda.Stream(device=self._device)
 
         self._loaded = True
         logger.info(
@@ -158,10 +146,9 @@ class _ModelWorker:
         )
 
     def extract_features_batch(self, frames: List[np.ndarray]) -> np.ndarray:
-        """Extract features from a batch of frames using this worker's model + stream."""
+        """Extract features from a batch of frames using this worker's model."""
         import torch
 
-        # Pre-allocate tensors on CPU then move
         tensors = []
         for frame in frames:
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -172,17 +159,9 @@ class _ModelWorker:
         if settings.USE_FP16 and "cuda" in self._device:
             batch = batch.half()
 
-        # Use dedicated CUDA stream for overlapped inference
-        if self._stream is not None:
-            with torch.cuda.stream(self._stream):
-                with torch.inference_mode():
-                    features = self._model.encode_image(batch)
-                    features = features / features.norm(dim=-1, keepdim=True)
-            self._stream.synchronize()
-        else:
-            with torch.inference_mode():
-                features = self._model.encode_image(batch)
-                features = features / features.norm(dim=-1, keepdim=True)
+        with torch.inference_mode():
+            features = self._model.encode_image(batch)
+            features = features / features.norm(dim=-1, keepdim=True)
 
         return features.cpu().numpy().astype(np.float32)
 
@@ -299,10 +278,6 @@ class KeyframeExtractor:
         if settings.USE_FP16 and "cuda" in self._device:
             model = model.half()
         model.eval()
-        try:
-            model = torch.compile(model, mode="reduce-overhead")
-        except Exception:
-            pass
         self._model = model
         self._preprocess_fn = preprocess
         logger.info(f"Feature model loaded on {self._device} ({model_name})")
@@ -457,7 +432,7 @@ class KeyframeExtractor:
                 )
                 return (vp, kfs, None)
             except Exception as e:
-                logger.error(f"Failed: {vp}: {e}")
+                logger.error(f"Failed: {vp}: {e}\n{traceback.format_exc()}")
                 return (vp, [], str(e))
             finally:
                 pool.release(worker)
