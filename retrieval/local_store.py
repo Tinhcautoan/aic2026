@@ -88,17 +88,62 @@ class LocalVectorStore:
                 })
         return results
 
+    def _parse_expr(self, expr: Optional[str]) -> Optional[str]:
+        """Extract video_id from Milvus-style expr like 'video_id == "V1"'."""
+        if not expr:
+            return None
+        import re
+        m = re.search(r'video_id\s*==\s*"([^"]+)"', expr)
+        return m.group(1) if m else None
+
+    def _filter_indices(self, expr: Optional[str]) -> Optional[set]:
+        """Return set of valid indices matching expr, or None for no filter."""
+        vid = self._parse_expr(expr)
+        if vid is None:
+            return None
+        return {i for i, v in enumerate(self._video_ids) if v == vid}
+
+    def _cosine_search_filtered(self, query: np.ndarray, emb_matrix: np.ndarray, top_k: int, expr: Optional[str]) -> List[dict]:
+        """Search with optional expr filtering."""
+        valid = self._filter_indices(expr)
+        if valid is not None and len(valid) == 0:
+            return []
+        if valid is None:
+            return self._cosine_search(query, emb_matrix, top_k)
+        # Filter matrix and remap indices
+        valid_list = sorted(valid)
+        filtered_matrix = emb_matrix[valid_list]
+        query = query.astype(np.float32).reshape(1, -1)
+        query_norm = query / (np.linalg.norm(query, axis=1, keepdims=True) + 1e-8)
+        emb_norm = filtered_matrix / (np.linalg.norm(filtered_matrix, axis=1, keepdims=True) + 1e-8)
+        scores = np.dot(query_norm, emb_norm.T)[0]
+        top_k = min(top_k, len(scores))
+        top_local = np.argsort(-scores)[:top_k]
+        results = []
+        for local_idx in top_local:
+            idx = valid_list[local_idx]
+            results.append({
+                "id": self._ids[idx],
+                "video_id": self._video_ids[idx],
+                "frame_idx": self._frame_indices[idx],
+                "timestamp": self._timestamps[idx],
+                "distance": float(1.0 - scores[local_idx]),
+                "score": float(scores[local_idx]),
+                "metadata": self._metadata[idx] if idx < len(self._metadata) else {},
+            })
+        return results
+
     def search_clip(self, query_embedding: np.ndarray, top_k: int = 10, expr: Optional[str] = None) -> List[dict]:
         emb_matrix = self._get_embedding_matrix("clip")
         if emb_matrix.shape[0] == 0:
             return []
-        return self._cosine_search(query_embedding, emb_matrix, top_k)
+        return self._cosine_search_filtered(query_embedding, emb_matrix, top_k, expr)
 
     def search_siglip2(self, query_embedding: np.ndarray, top_k: int = 10, expr: Optional[str] = None) -> List[dict]:
         emb_matrix = self._get_embedding_matrix("siglip2")
         if emb_matrix.shape[0] == 0:
             return []
-        return self._cosine_search(query_embedding, emb_matrix, top_k)
+        return self._cosine_search_filtered(query_embedding, emb_matrix, top_k, expr)
 
     def hybrid_search(self, clip_query: np.ndarray, siglip2_query: np.ndarray, top_k: int = 10, expr: Optional[str] = None) -> List[dict]:
         clip_results = self.search_clip(clip_query, top_k=top_k, expr=expr)

@@ -191,7 +191,7 @@ class MilvusVectorStore:
         """
         n = len(frame_indices)
         if metadata_list is None:
-            metadata_list = [{}] * n
+            metadata_list = [{} for _ in range(n)]
 
         entities = [
             [video_id] * n,  # video_id

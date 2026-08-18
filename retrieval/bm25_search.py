@@ -229,7 +229,9 @@ class BM25Index:
 
     def save(self, path: Optional[str] = None) -> None:
         path = path or settings.BM25_INDEX_PATH or str(settings.CACHE_DIR / "bm25_index.pkl")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        dir_name = os.path.dirname(path)
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
         with open(path, "wb") as f:
             pickle.dump({
                 "doc_keys": self._doc_keys,

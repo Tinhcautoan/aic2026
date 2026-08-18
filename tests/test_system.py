@@ -98,9 +98,8 @@ class TestAPIModels(unittest.TestCase):
 
     def test_query_request(self):
         from api.models import QueryRequest
-        req = QueryRequest(query="test query", top_k=10, model="fusion")
+        req = QueryRequest(query="test query", top_k=10)
         self.assertEqual(req.query, "test query")
-        self.assertEqual(req.model, "fusion")
         self.assertEqual(req.top_k, 10)
         print("  ✅ QueryRequest model valid")
 

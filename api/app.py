@@ -455,7 +455,7 @@ def create_app() -> FastAPI:
         if embedding_engine: ml = [model_label, f"SigLIP2 ({settings.SIGLIP2_MODEL_NAME})"]
         gpu = False
         try: import torch; gpu = torch.cuda.is_available()
-        except: pass
+        except Exception: pass
         return {"status": "healthy", "milvus": ms, "redis": rs, "gpu_available": gpu, "models_loaded": ml, "uptime_seconds": time.time() - startup_time}
 
     async def _search_by_embeddings(
@@ -524,6 +524,8 @@ def create_app() -> FastAPI:
         expand_neighbors: bool = Query(None, description="Expand top hits to +-N frame neighbors. Default: off for top_k<=20."),
         dedup: bool = Query(True, description="Remove near-duplicate frames from results."),
     ):
+        if embedding_engine is None:
+            raise HTTPException(503, "Embedding engine not initialized")
         hybrid_embs = await embedding_engine.async_encode_text(request.query)
         clip_emb, siglip2_emb = hybrid_embs["clip"], hybrid_embs["siglip2"]
         return await _search_by_embeddings(
@@ -686,7 +688,7 @@ def create_app() -> FastAPI:
         total_start = time.time()
         for vp in video_paths:
             try:
-                result = await asyncio.get_event_loop().run_in_executor(
+                result = await asyncio.get_running_loop().run_in_executor(
                     None, lambda vp=vp: pipeline.process_video(
                         video_path=vp, save_keyframes=False))
                 vid = result.get("video_id", "")
@@ -849,11 +851,6 @@ def create_app() -> FastAPI:
     @app.get("/api/health")
     async def health_check():
         return {"status": "ok"}
-
-    @app.get("/ui")
-    async def serve_frontend():
-        p = settings.PROJECT_ROOT / "frontend" / "index.html"
-        return FileResponse(p) if p.exists() else {"message": "Frontend not found"}
 
     @app.get("/process", response_class=HTMLResponse)
     async def serve_process_page():

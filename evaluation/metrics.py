@@ -170,7 +170,7 @@ def evaluate_retrieval(
 
         logger.info(
             f"Query {query_idx + 1}/{total_queries}: "
-            f"Recall@10={avg_mrr:.3f}, MRR={avg_mrr:.3f} "
+            f"Recall@10={avg_recall:.3f}, MRR={avg_mrr:.3f} "
             f"'{query_text[:60]}...'"
         )
 
