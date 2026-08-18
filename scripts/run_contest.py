@@ -61,7 +61,7 @@ def _tkis_pipeline(
     rows = [
         SubmissionRow(
             line=format_csv_line(r["video_id"], r["frame_idx"]),
-            score=r.get("final_rerank_score", r.get("rrf_fusion_score", 0.0)),
+            score=r.get("final_rerank_score", r.get("rrf_fusion_score", r.get("final_score", 0.0))),
         )
         for r in results
     ]
@@ -87,7 +87,7 @@ def _qa_pipeline(
     for r in results[:top_k]:
         vid = r["video_id"]
         kf_idx = r.get("frame_idx", 0)
-        score = r.get("final_rerank_score", r.get("rrf_fusion_score", 0.0))
+        score = r.get("final_rerank_score", r.get("rrf_fusion_score", r.get("final_score", 0.0)))
         frame_count = r.get("frame_count", 2000)
         sampled = sample_video_windows(
             video_id=vid,
@@ -126,7 +126,7 @@ def _trake_pipeline(
     for r in results[:top_k]:
         vid = r["video_id"]
         kf_idx = r.get("frame_idx", 0)
-        score = r.get("final_rerank_score", r.get("rrf_fusion_score", 0.0))
+        score = r.get("final_rerank_score", r.get("rrf_fusion_score", r.get("final_score", 0.0)))
         frame_count = r.get("frame_count", 2000)
         sampled = sample_video_windows(
             video_id=vid,
@@ -135,7 +135,7 @@ def _trake_pipeline(
             delta_ratio=settings.DELTA_RATIO,
             frame_step=settings.FRAME_STEP,
         )
-        candidate_dicts = [{"frame_idx": sf.frame_idx, "score": sf.score} for sf in sampled]
+        candidate_dicts = [{"video_id": vid, "frame_idx": sf.frame_idx, "score": sf.score} for sf in sampled]
         alignment = align_video_events(
             video_id=vid,
             candidate_frames=candidate_dicts,

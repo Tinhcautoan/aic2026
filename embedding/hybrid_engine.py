@@ -59,8 +59,28 @@ class HybridEmbeddingEngine:
         self.unified_dim = settings.UNIFIED_DIM
         self._executor = ThreadPoolExecutor(max_workers=2)
 
+        # Vietnamese -> English translation for the English-only text encoders.
+        # Lazy: the model is only downloaded/loaded on the first Vietnamese query.
+        self._translator = None
+        if settings.VI_EN_TRANSLATION_ENABLED:
+            try:
+                from .query_translator import VietnameseEnglishTranslator
+                self._translator = VietnameseEnglishTranslator(
+                    model_name=settings.VI_EN_TRANSLATION_MODEL,
+                    device=settings.VI_EN_TRANSLATION_DEVICE,
+                )
+            except Exception as e:
+                logger.warning(f"vi->en translator disabled: {e}")
+
         elapsed = time.time() - start_time
         logger.info(f"Hybrid Embedding Engine initialized in {elapsed:.2f}s")
+
+    def _maybe_translate(self, text: str) -> str:
+        """Translate Vietnamese to English so the English-only TULIP/SigLIP2
+        text encoders embed it correctly. English text passes through unchanged."""
+        if self._translator is None or not text:
+            return text
+        return self._translator.maybe_translate_to_english(text)
 
     def encode_image(self, image: Image.Image) -> dict:
         """
@@ -91,6 +111,7 @@ class HybridEmbeddingEngine:
         Encode a text query with both CLIP and SigLIP2.
         Returns dict with 'clip' and 'siglip2' embeddings.
         """
+        text = self._maybe_translate(text)
         clip_emb = self.clip_encoder.encode_text(text)
         siglip2_emb = self.siglip2_encoder.encode_text(text)
         return {
@@ -103,6 +124,7 @@ class HybridEmbeddingEngine:
         Encode multiple text queries with both encoders.
         Returns dict with 'clip' and 'siglip2' batch embeddings.
         """
+        texts = [self._maybe_translate(t) for t in texts]
         clip_embs = self.clip_encoder.encode_texts_batch(texts)
         siglip2_embs = self.siglip2_encoder.encode_texts_batch(texts)
         return {
@@ -128,6 +150,7 @@ class HybridEmbeddingEngine:
 
     async def async_encode_text(self, text: str) -> dict:
         """Asynchronously encode text with both models running in parallel."""
+        text = self._maybe_translate(text)
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:

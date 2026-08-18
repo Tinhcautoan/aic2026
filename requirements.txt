@@ -1,3 +1,12 @@
+# =====================================================================
+# GPU (CUDA 12.6) builds
+# Install PyTorch from the official CUDA index so torch/torchvision
+# ship with CUDA support (matches the cu126 index used in the README).
+# NOTE: transformers, open_clip_torch, sentence-transformers and easyocr
+# have no separate "GPU" package on PyPI -- they use CUDA automatically
+# once a CUDA-enabled torch is installed.
+--extra-index-url https://download.pytorch.org/whl/cu126
+
 # Core Framework
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
@@ -12,13 +21,16 @@ redis>=5.0.0
 # Vector Database
 pymilvus>=2.4.0
 
-# ML / Embedding
-torch>=2.4.0
-torchvision>=0.19.0
+# ML / Embedding (CUDA 12.6 builds)
+torch==2.13.0+cu126
+torchvision==0.28.0+cu126
 transformers>=4.44.0
 open_clip_torch>=2.26.0
 Pillow>=10.4.0
 einops>=0.6.0
+# Vietnamese -> English translation (MarianMT tokenizer deps)
+sentencepiece>=0.2.0
+sacremoses>=0.1.1
 
 # Sparse Search & Cross-Encoder Re-ranking
 rank-bm25>=0.2.2
@@ -34,6 +46,10 @@ easyocr>=1.7.0
 
 # ASR (Speech-to-Text)
 faster-whisper>=1.0.0
+# NVIDIA CUDA runtime libraries required for faster-whisper / CTranslate2 GPU inference
+# (cuBLAS + cuDNN 9 for CUDA 12)
+nvidia-cublas-cu12
+nvidia-cudnn-cu12
 
 # Utilities
 numpy>=1.26.0

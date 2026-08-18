@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     UNIFIED_DIM: int = 768
     USE_FP16: bool = True
 
+    # Vietnamese -> English translation (improves retrieval for Vietnamese
+    # queries on the English-only TULIP/SigLIP2 text encoders; English queries
+    # are passed through unchanged).
+    VI_EN_TRANSLATION_ENABLED: bool = True
+    VI_EN_TRANSLATION_MODEL: str = "Helsinki-NLP/opus-mt-vi-en"
+    VI_EN_TRANSLATION_DEVICE: str = "cpu"  # keep translation off the small 4GB GPU
+
     # Keyframe Extraction
     KEYFRAME_THRESHOLD: float = 0.6
     KEYFRAME_MIN_DELTA: int = 5  # minimum frames between keyframes
