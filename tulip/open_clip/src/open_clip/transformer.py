@@ -358,7 +358,7 @@ class VisionTransformer(nn.Module):
             output_tokens: bool = False,
     ):
         super().__init__()
-        assert pool_type in ('tok', 'avg', 'none')
+        assert pool_type in ('tok', 'avg', 'avg_all', 'none')
         self.output_tokens = output_tokens
         image_height, image_width = self.image_size = to_2tuple(image_size)
         patch_height, patch_width = self.patch_size = to_2tuple(patch_size)
