@@ -23,6 +23,8 @@ from api.models import (
     BatchProcessRequest, BatchProcessResponse,
     SystemStatus, ErrorResponse,
     VQARequest, VQABatchRequest, VQAResponse,
+    QaSearchRequest, QaSearchResponse, QaSearchResultItem,
+    TrakeRequest, TrakeResponse, TrakeResultItem,
 )
 
 # ---- Lazy imports ----
@@ -835,6 +837,184 @@ def create_app() -> FastAPI:
                     "error": str(e),
                 })
         return {"total": len(results), "results": results}
+
+    @app.post("/api/qa/search", response_model=QaSearchResponse)
+    async def qa_search(request: QaSearchRequest):
+        if embedding_engine is None:
+            raise HTTPException(503, "Embedding engine not initialized")
+        if milvus_store is None:
+            raise HTTPException(503, "Store not available. Process videos first.")
+
+        from retrieval.vqa_llm import answer_from_vlm
+        from retrieval.frame_sampler import sample_video_windows
+        import time as _time
+
+        t0 = _time.time()
+
+        hybrid_embs = await embedding_engine.async_encode_text(request.description)
+        clip_emb, siglip2_emb = hybrid_embs["clip"], hybrid_embs["siglip2"]
+
+        if hybrid_pipeline is not None:
+            search_results = hybrid_pipeline.search(
+                query=request.description,
+                clip_query_emb=clip_emb,
+                siglip2_query_emb=siglip2_emb,
+                final_top_k=request.top_k,
+                use_bm25=True,
+                use_cross_encoder=True,
+                expand_neighbors=False,
+                dedup=True,
+            )
+        else:
+            candidates = milvus_store.hybrid_search(
+                clip_query=clip_emb, siglip2_query_emb=siglip2_emb, top_k=request.top_k,
+            )
+            search_results = reranker.rerank(candidates, top_k=request.top_k) if reranker else candidates[:request.top_k]
+
+        out_results: list[QaSearchResultItem] = []
+        for r in search_results[:request.top_k]:
+            vid = r["video_id"]
+            kf_idx = r.get("frame_idx", 0)
+            score = r.get("final_rerank_score", r.get("rrf_fusion_score", 0.0))
+            frame_count = r.get("frame_count", 2000)
+            try:
+                sampled = sample_video_windows(
+                    video_id=vid,
+                    keyframes=[{"frame_idx": kf_idx, "score": score}],
+                    frame_count=frame_count,
+                    delta_ratio=settings.DELTA_RATIO,
+                    frame_step=settings.FRAME_STEP,
+                )
+                vlm_frames = [{"video_id": vid, "frame_idx": sf.frame_idx, "score": sf.score} for sf in sampled]
+                vlm_out = await answer_from_vlm(request.question, vlm_frames, mode="qa")
+                answer = vlm_out.get("answer", "") if vlm_out else ""
+            except Exception as e:
+                logger.warning(f"VLM call failed for {vid} frame {kf_idx}: {e}")
+                answer = ""
+
+            out_results.append(QaSearchResultItem(
+                video_id=vid,
+                frame_idx=kf_idx,
+                answer=answer,
+                score=score,
+                timestamp=r.get("timestamp", 0.0),
+                clip_score=r.get("clip_score", 0.0),
+                siglip2_score=r.get("siglip2_score", 0.0),
+            ))
+
+        return QaSearchResponse(
+            query=request.description,
+            question=request.question,
+            total_results=len(out_results),
+            latency_ms=round((_time.time() - t0) * 1000, 1),
+            results=out_results,
+        )
+
+    def _make_event_search_fn_for_video(video_id: str):
+        """Create an event_search_fn scoped to a single video's frames."""
+        import numpy as np
+
+        def event_search_fn(event_text: str, candidates: list[dict]) -> list[tuple[int, float]]:
+            embs = embedding_engine.encode_text(event_text)
+            clip_emb = embs["clip"]
+            siglip2_emb = embs["siglip2"]
+
+            frame_indices = [c["frame_idx"] for c in candidates]
+            frame_embs = milvus_store.get_frame_embeddings(video_id=video_id, frame_indices=frame_indices)
+
+            results = []
+            for fe in frame_embs:
+                fi = fe["frame_idx"]
+                clip_sim = float(np.dot(clip_emb, fe["clip_emb"]))
+                siglip2_sim = float(np.dot(siglip2_emb, fe["siglip2_emb"]))
+                avg_sim = (clip_sim + siglip2_sim) / 2.0
+                results.append((fi, avg_sim))
+
+            results.sort(key=lambda x: x[1], reverse=True)
+            return results
+
+        return event_search_fn
+
+    @app.post("/api/trake", response_model=TrakeResponse)
+    async def trake_endpoint(request: TrakeRequest):
+        if embedding_engine is None:
+            raise HTTPException(503, "Embedding engine not initialized")
+        if milvus_store is None:
+            raise HTTPException(503, "Store not available. Process videos first.")
+
+        from retrieval.trake_aligner import align_video_events, rank_videos
+        from retrieval.frame_sampler import sample_video_windows
+        from retrieval.query_parser import ParsedTrake
+        import time as _time
+
+        t0 = _time.time()
+        parsed = ParsedTrake(main=request.description, events=request.events, event_count=len(request.events))
+
+        hybrid_embs = await embedding_engine.async_encode_text(parsed.main)
+        clip_emb, siglip2_emb = hybrid_embs["clip"], hybrid_embs["siglip2"]
+
+        if hybrid_pipeline is not None:
+            search_results = hybrid_pipeline.search(
+                query=parsed.main,
+                clip_query_emb=clip_emb,
+                siglip2_query_emb=siglip2_emb,
+                final_top_k=request.top_k,
+                use_bm25=True,
+                use_cross_encoder=True,
+                expand_neighbors=False,
+                dedup=True,
+            )
+        else:
+            candidates = milvus_store.hybrid_search(
+                clip_query=clip_emb, siglip2_query_emb=siglip2_emb, top_k=request.top_k,
+            )
+            search_results = reranker.rerank(candidates, top_k=request.top_k) if reranker else candidates[:request.top_k]
+
+        alignments = []
+        for r in search_results[:request.top_k]:
+            vid = r["video_id"]
+            kf_idx = r.get("frame_idx", 0)
+            score = r.get("final_rerank_score", r.get("rrf_fusion_score", 0.0))
+            frame_count = r.get("frame_count", 2000)
+            try:
+                sampled = sample_video_windows(
+                    video_id=vid,
+                    keyframes=[{"frame_idx": kf_idx, "score": score}],
+                    frame_count=frame_count,
+                    delta_ratio=settings.DELTA_RATIO,
+                    frame_step=settings.FRAME_STEP,
+                )
+                candidate_dicts = [{"frame_idx": sf.frame_idx, "score": sf.score} for sf in sampled]
+                event_search_fn = _make_event_search_fn_for_video(vid)
+                alignment = align_video_events(
+                    video_id=vid,
+                    candidate_frames=candidate_dicts,
+                    event_texts=parsed.events,
+                    query_score=score,
+                    event_search_fn=event_search_fn,
+                )
+                alignments.append(alignment)
+            except Exception as e:
+                logger.warning(f"TRAKE alignment failed for {vid}: {e}")
+
+        ranked = rank_videos(alignments, max_rows=request.top_k)
+        out_results: list[TrakeResultItem] = []
+        for a in ranked:
+            frames = [ef.frame_idx for ef in a.event_frames if ef.frame_idx >= 0]
+            if len(frames) == len(parsed.events):
+                out_results.append(TrakeResultItem(
+                    video_id=a.video_id,
+                    frames=frames,
+                    score=a.total_score,
+                    event_frames=[{"event": ef.event_text, "frame_idx": ef.frame_idx, "score": ef.score} for ef in a.event_frames],
+                ))
+
+        return TrakeResponse(
+            query=parsed.main,
+            total_results=len(out_results),
+            latency_ms=round((_time.time() - t0) * 1000, 1),
+            results=out_results,
+        )
 
     @app.get("/api/videos")
     async def list_videos():

@@ -78,6 +78,50 @@ class ErrorResponse(BaseModel):
     detail: Optional[str] = Field(default=None, description="More details about what happened")
 
 
+class QaSearchRequest(BaseModel):
+    description: str = Field(..., description="Description of the scene to search for", max_length=2000)
+    question: str = Field(..., description="Question to answer about the found frames", max_length=1000)
+    top_k: int = Field(default=20, ge=1, le=100, description="Number of candidate frames to retrieve")
+
+
+class QaSearchResultItem(BaseModel):
+    video_id: str = ""
+    frame_idx: int = 0
+    answer: str = ""
+    score: float = 0.0
+    timestamp: float = 0.0
+    clip_score: float = 0.0
+    siglip2_score: float = 0.0
+
+
+class QaSearchResponse(BaseModel):
+    query: str = ""
+    question: str = ""
+    total_results: int = 0
+    latency_ms: float = 0.0
+    results: List[QaSearchResultItem] = Field(default_factory=list)
+
+
+class TrakeRequest(BaseModel):
+    description: str = Field(..., description="Main description of the event sequence", max_length=2000)
+    events: List[str] = Field(..., description="Ordered list of event moment descriptions", min_length=1)
+    top_k: int = Field(default=50, ge=1, le=200, description="Number of candidate videos to search")
+
+
+class TrakeResultItem(BaseModel):
+    video_id: str = ""
+    frames: List[int] = Field(default_factory=list)
+    score: float = 0.0
+    event_frames: List[dict] = Field(default_factory=list)
+
+
+class TrakeResponse(BaseModel):
+    query: str = ""
+    total_results: int = 0
+    latency_ms: float = 0.0
+    results: List[TrakeResultItem] = Field(default_factory=list)
+
+
 class VQARequest(BaseModel):
     """Single VideoQA question."""
     id: Optional[int] = Field(default=None, description="Row id from test.csv")
