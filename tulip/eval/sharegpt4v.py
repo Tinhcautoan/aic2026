@@ -1,6 +1,6 @@
 import json
 from PIL import Image
-from tulip_open_clip import create_model_and_transforms, get_tokenizer, get_model_config
+from open_clip import create_model_and_transforms, get_tokenizer, get_model_config
 
 import torch
 import torch.utils.data as data
