@@ -4,12 +4,20 @@ Uses OpenCLIP with ViT-SO400M-14-SigLIP2 backbone producing 1152-dimensional emb
 with a linear projection layer to map to unified 1024-dimensional space as described in the paper.
 """
 
+import sys
 import torch
 import torch.nn as nn
 import numpy as np
 from PIL import Image
 from loguru import logger
+
+# Import standard open_clip_torch, NOT the TULIP fork.
+# The TULIP fork at tulip/open_clip/src/ can shadow the real package on sys.path.
+_tulip_paths = [p for p in sys.path if 'tulip' in p and 'open_clip' in p]
+for _p in _tulip_paths:
+    sys.path.remove(_p)
 import open_clip
+sys.path.extend(_tulip_paths)
 
 from config import settings
 

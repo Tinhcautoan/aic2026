@@ -130,6 +130,6 @@ class HybridEmbeddingEngine:
         clip_sim = float(np.dot(image_embeddings["clip"], text_embeddings["clip"]))
         siglip2_sim = float(np.dot(image_embeddings["siglip2"], text_embeddings["siglip2"]))
         return {
-            "clip": clip_embs,
-            "siglip2": siglip2_embs,
+            "clip": clip_sim,
+            "siglip2": siglip2_sim,
         }

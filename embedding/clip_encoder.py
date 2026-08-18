@@ -3,11 +3,18 @@ CLIP Encoder for image and text embeddings.
 Uses OpenCLIP with ViT-L-14 backbone and dfn2b pretraining as described in the paper.
 """
 
+import sys
 import torch
 import numpy as np
 from PIL import Image
 from loguru import logger
+
+# Import standard open_clip_torch, NOT the TULIP fork.
+_tulip_paths = [p for p in sys.path if 'tulip' in p and 'open_clip' in p]
+for _p in _tulip_paths:
+    sys.path.remove(_p)
 import open_clip
+sys.path.extend(_tulip_paths)
 
 from config import settings
 
