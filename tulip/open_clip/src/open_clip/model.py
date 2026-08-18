@@ -5,7 +5,7 @@ Adapted from https://github.com/openai/CLIP. Originally MIT License, Copyright (
 import copy
 import logging
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
@@ -43,6 +43,7 @@ class CLIPVisionCfg:
     final_ln_after_pool: bool = False  # apply final LayerNorm after pooling
     pool_type: str = 'tok'
     output_tokens: bool = False
+    output_dict: bool = False
     act_kwargs: Optional[dict] = None
     norm_kwargs: Optional[dict] = None
 
@@ -53,6 +54,16 @@ class CLIPVisionCfg:
     timm_proj_bias: bool = False  # enable bias final projection
     timm_drop: float = 0.  # head dropout
     timm_drop_path: Optional[float] = None  # backbone stochastic depth
+
+    def __init__(self, **kwargs):
+        # Set all field defaults first (dataclass-style)
+        for f in fields(self):
+            if f.name not in kwargs:
+                setattr(self, f.name, f.default)
+        # Apply provided kwargs (ignore unknown fields for forward-compat)
+        for k, v in kwargs.items():
+            if hasattr(self, k):
+                setattr(self, k, v)
 
 
 @dataclass

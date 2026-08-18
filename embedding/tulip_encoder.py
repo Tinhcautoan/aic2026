@@ -6,6 +6,7 @@ Uses the original open_clip_torch package for SigLIP2 (they coexist via filesyst
 
 import sys
 import os
+import copy
 import torch
 import numpy as np
 from PIL import Image
@@ -13,11 +14,37 @@ from loguru import logger
 
 from config import settings
 
-# Point to TULIP's open_clip fork source (before original open_clip_torch in sys.path)
+# Import the TULIP fork in isolation so it doesn't hijack open_clip_torch
+# for other modules (e.g. siglip2_encoder.py).
 _tulip_dir = os.path.join(os.path.dirname(__file__), '..', 'tulip', 'open_clip', 'src')
-if os.path.isdir(_tulip_dir):
-    if _tulip_dir not in sys.path:
-        sys.path.insert(0, _tulip_dir)
+
+# Save original open_clip state
+_orig_open_clip = sys.modules.get('open_clip')
+_orig_path = list(sys.path)
+
+# Temporarily inject TULIP fork path
+if os.path.isdir(_tulip_dir) and _tulip_dir not in sys.path:
+    sys.path.insert(0, _tulip_dir)
+
+# Remove cached open_clip so the TULIP fork is loaded fresh
+_modules_backup = {}
+for _key in list(sys.modules):
+    if _key == 'open_clip' or _key.startswith('open_clip.'):
+        _modules_backup[_key] = sys.modules.pop(_key)
+
+import open_clip as _tulip_open_clip  # noqa: E402 — load TULIP fork
+
+# Save the TULIP fork module reference for this file's use
+tulip_open_clip = _tulip_open_clip
+
+# Restore sys.path and sys.modules so other files get standard open_clip_torch
+sys.path[:] = _orig_path
+for _key, _mod in _modules_backup.items():
+    sys.modules[_key] = _mod
+if _orig_open_clip is not None:
+    sys.modules['open_clip'] = _orig_open_clip
+elif 'open_clip' in sys.modules:
+    del sys.modules['open_clip']
 
 class TULIPEncoder:
     """TULIP-based encoder using UC Berkeley open_clip fork. 1024-dim embeddings."""
@@ -31,9 +58,7 @@ class TULIPEncoder:
 
         logger.info(f"Initializing TULIP encoder on {self.device}")
 
-        import open_clip
-
-        self.model, _, self.preprocess = open_clip.factory.create_model_and_transforms(
+        self.model, _, self.preprocess = tulip_open_clip.factory.create_model_and_transforms(
             model_name=settings.TULIP_MODEL_NAME,
             pretrained=settings.TULIP_PRETRAINED,
             device=self.device,
@@ -43,7 +68,7 @@ class TULIPEncoder:
             self.model = self.model.half()
 
         self.model.eval()
-        self._tokenizer = open_clip.tokenizer.SimpleTokenizer()
+        self._tokenizer = tulip_open_clip.tokenizer.SimpleTokenizer()
         self.embedding_dim = settings.EMBEDDING_DIM_CLIP
 
         logger.info(

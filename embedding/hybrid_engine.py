@@ -6,6 +6,7 @@ Implements dual-encoder inference with asynchronous scheduling as described in t
 import asyncio
 import time
 import numpy as np
+import torch
 from PIL import Image
 from loguru import logger
 from concurrent.futures import ThreadPoolExecutor
@@ -129,9 +130,6 @@ class HybridEmbeddingEngine:
         clip_sim = float(np.dot(image_embeddings["clip"], text_embeddings["clip"]))
         siglip2_sim = float(np.dot(image_embeddings["siglip2"], text_embeddings["siglip2"]))
         return {
-            "clip_sim": clip_sim,
-            "siglip2_sim": siglip2_sim,
+            "clip": clip_embs,
+            "siglip2": siglip2_embs,
         }
-
-# Module-level import fix (lazy import for type hints)
-import torch
