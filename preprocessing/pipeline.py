@@ -89,8 +89,8 @@ class PreprocessingPipeline:
         # Step 4: Insert into store
         store = self.milvus_store
         if store is None:
-            from retrieval.local_store import LocalVectorStore
-            store = LocalVectorStore()
+            from retrieval.persistent_store import PersistentVectorStore
+            store = PersistentVectorStore()
         logger.info(f"Inserting {len(keyframes)} frames...")
 
         frame_indices = [kf["frame_idx"] for kf in keyframes]

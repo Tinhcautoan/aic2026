@@ -21,6 +21,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import settings
 
 
+def _count_keyframes(keyframe_dir: Path) -> int:
+    """Count keyframes in both flat and subdirectory formats."""
+    count = len(list(keyframe_dir.glob("*.jpg")))
+    for sub_dir in keyframe_dir.iterdir():
+        if sub_dir.is_dir():
+            count += len(list(sub_dir.glob("*.jpg")))
+    return count
+
+
 def main():
     parser = argparse.ArgumentParser(description="Local pipeline setup")
     parser.add_argument("--videos-dir", required=True, help="Directory with .mp4 videos")
@@ -53,8 +62,9 @@ def main():
         print("=" * 60)
         print("Step 2: Extracting keyframes...")
         print("=" * 60)
-        if keyframe_dir.exists() and len(list(keyframe_dir.glob("*.jpg"))) > 100:
-            print(f"  Keyframes already exist in {keyframe_dir} ({len(list(keyframe_dir.glob('*.jpg')))} files) -- skipping\n")
+        existing_kf = _count_keyframes(keyframe_dir)
+        if existing_kf > 100:
+            print(f"  Keyframes already exist in {keyframe_dir} ({existing_kf} files) -- skipping\n")
         else:
             from preprocessing.pipeline import PreprocessingPipeline
             pipeline = PreprocessingPipeline()
@@ -76,8 +86,11 @@ def main():
         print("=" * 60)
         from retrieval.persistent_store import PersistentVectorStore
         store = PersistentVectorStore(str(store_dir))
+        total_kf = _count_keyframes(keyframe_dir)
         if len(store._ids) > 10:
             print(f"  Embeddings already exist ({len(store._ids)} frames) -- skipping\n")
+        elif total_kf == 0:
+            print(f"  No keyframes found in {keyframe_dir} -- run Step 2 first\n")
         else:
             _generate_embeddings(keyframe_dir, store_dir)
     else:
@@ -109,10 +122,21 @@ def _generate_embeddings(keyframe_dir: Path, store_dir: Path):
 
     kf_re = re.compile(r'^(.+?)_frame_(\d+)\.jpg$')
     grouped = defaultdict(list)
+
+    # Search flat format: data/keyframes/{name}_frame_{idx}.jpg
     for fp in sorted(keyframe_dir.glob("*.jpg")):
         m = kf_re.match(fp.name)
         if m:
             grouped[m.group(1)].append((int(m.group(2)), fp))
+
+    # Search subdirectory format: data/keyframes/{name}/{name}_frame_{idx}.jpg
+    for sub_dir in keyframe_dir.iterdir():
+        if sub_dir.is_dir():
+            video_name = sub_dir.name
+            for fp in sorted(sub_dir.glob("*.jpg")):
+                m = kf_re.match(fp.name)
+                if m:
+                    grouped[video_name].append((int(m.group(2)), fp))
 
     video_names = sorted(grouped.keys())
     total_frames = sum(len(v) for v in grouped.values())
