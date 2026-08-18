@@ -25,13 +25,29 @@
             flex-direction: column;
             min-height: 100vh;
         }
+        .nav-header {
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            height: 44px;
+            gap: 20px;
+            flex-shrink: 0;
+        }
+        .nav-header a {
+            color: var(--text-secondary); text-decoration: none; font-size: 0.82rem; font-weight: 500;
+            transition: color 0.15s;
+        }
+        .nav-header a:hover { color: var(--accent); }
+        .nav-header a.active { color: var(--text); font-weight: 600; }
         .header {
             background: var(--panel);
             border-bottom: 1px solid var(--border);
-            padding: 16px 24px;
+            padding: 12px 24px;
         }
-        .header h1 { font-size: 1.3rem; font-weight: 600; }
-        .header p { font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px; }
+        .header h1 { font-size: 1.1rem; font-weight: 600; }
+        .header p { font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px; }
         .container {
             display: flex;
             flex: 1;
@@ -45,7 +61,7 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 14px;
         }
         .sidebar > div {
             display: flex;
@@ -61,10 +77,10 @@
         .question-box {
             flex: 1;
             overflow-y: auto;
-            padding: 24px;
+            padding: 20px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 16px;
         }
         .question-display {
             background: var(--panel);
@@ -77,22 +93,24 @@
             display: inline-block;
             background: var(--accent);
             color: var(--bg);
-            padding: 4px 8px;
+            padding: 3px 8px;
             border-radius: 4px;
             font-size: 0.7rem;
             font-weight: 600;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
         .question-type.VKIS { background: var(--warning); }
+        .question-type.QA { background: #00b4d8; }
+        .question-type.TRAKE { background: #e056a0; }
         .question-text {
-            font-size: 1rem;
+            font-size: 0.95rem;
             line-height: 1.5;
             color: var(--text);
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
         .question-image {
             width: 100%;
-            max-height: 400px;
+            max-height: 300px;
             border-radius: 8px;
             border: 1px solid var(--border);
             object-fit: contain;
@@ -102,37 +120,58 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 6px;
             border: 1px solid var(--border);
             border-radius: 6px;
-            padding: 12px;
+            padding: 10px;
             background: var(--bg);
         }
-        .answer-input-row {
+        .answer-slot {
             display: grid;
-            grid-template-columns: 50px 1fr;
+            grid-template-columns: 36px 64px 1fr auto;
             gap: 8px;
             align-items: center;
+            padding: 6px 8px;
+            border-radius: 6px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            transition: border-color 0.15s;
+            cursor: pointer;
         }
-        .answer-input-row label {
-            font-size: 0.7rem;
+        .answer-slot:hover { border-color: var(--accent); }
+        .answer-slot.has-value { border-color: rgba(0,214,143,0.3); }
+        .answer-slot label {
+            font-size: 0.68rem;
             color: var(--text-secondary);
             text-align: right;
+            font-weight: 600;
         }
-        .answer-input-row input {
-            padding: 6px 8px;
-            background: var(--panel);
+        .answer-slot .thumb {
+            width: 64px; height: 36px; border-radius: 4px; overflow: hidden;
+            background: #12121a; display: flex; align-items: center; justify-content: center;
+        }
+        .answer-slot .thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .answer-slot .thumb .no-thumb { font-size: 0.6rem; color: var(--text-secondary); }
+        .answer-slot .slot-info {
+            font-size: 0.72rem; color: var(--text-secondary); line-height: 1.3;
+        }
+        .answer-slot .slot-info .slot-vid { color: var(--accent); font-weight: 600; }
+        .answer-slot .slot-info .slot-ans { color: var(--text); display: block; margin-top: 1px; }
+        .answer-slot input {
+            padding: 5px 8px;
+            background: var(--bg);
             border: 1px solid var(--border);
             border-radius: 4px;
             color: var(--text);
-            font-size: 0.8rem;
+            font-size: 0.78rem;
+            width: 100%;
         }
-        .answer-input-row input:focus { outline: none; border-color: var(--accent); }
+        .answer-slot input:focus { outline: none; border-color: var(--accent); }
         .btn {
             padding: 10px 16px;
             border: none;
             border-radius: 8px;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
@@ -144,91 +183,97 @@
         .btn-secondary:hover { border-color: var(--accent); }
         .btn-row { display: flex; gap: 8px; flex-direction: column; }
         .progress-bar {
-            width: 100%;
-            height: 6px;
-            background: var(--border);
-            border-radius: 3px;
-            overflow: hidden;
-            margin-bottom: 8px;
+            width: 100%; height: 6px; background: var(--border); border-radius: 3px;
+            overflow: hidden; margin-bottom: 8px;
         }
-        .progress-fill {
-            height: 100%;
-            background: var(--accent);
-            transition: width 0.3s;
-        }
+        .progress-fill { height: 100%; background: var(--accent); transition: width 0.3s; }
         .stats {
-            display: flex;
-            gap: 8px;
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            flex-wrap: wrap;
+            display: flex; gap: 8px; font-size: 0.8rem; color: var(--text-secondary); flex-wrap: wrap;
         }
         .stat { background: var(--bg); padding: 4px 8px; border-radius: 4px; }
         .stat .val { color: var(--accent); font-weight: 600; }
         .section-label {
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            display: block;
-            margin-bottom: 8px;
+            font-size: 0.72rem; font-weight: 600; color: var(--text-secondary);
+            text-transform: uppercase; display: block; margin-bottom: 6px;
         }
         .upload-zone {
-            border: 2px dashed var(--border);
-            border-radius: 8px;
-            padding: 16px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s;
+            border: 2px dashed var(--border); border-radius: 8px; padding: 14px;
+            text-align: center; cursor: pointer; transition: all 0.2s;
         }
-        .upload-zone:hover { border-color: var(--accent); background: rgba(108, 92, 231, 0.05); }
+        .upload-zone:hover { border-color: var(--accent); background: rgba(108,92,231,0.05); }
         .upload-zone input { display: none; }
-        .upload-zone p { font-size: 0.85rem; margin: 0; }
+        .upload-zone p { font-size: 0.82rem; margin: 0; }
         .toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            padding: 12px 20px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            z-index: 2000;
+            position: fixed; bottom: 20px; right: 20px; padding: 12px 20px;
+            border-radius: 8px; font-size: 0.85rem; z-index: 2000;
             animation: slideIn 0.3s;
         }
         .toast.error { background: var(--error); color: white; }
         .toast.ok { background: var(--success); color: var(--bg); }
         @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
         .empty-state {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            flex-direction: column;
-            text-align: center;
-            color: var(--text-secondary);
+            display: flex; align-items: center; justify-content: center;
+            height: 100%; flex-direction: column; text-align: center; color: var(--text-secondary);
         }
         .empty-state > div { font-size: 2rem; margin-bottom: 12px; }
         input[type="number"] {
-            width: 100%;
-            padding: 8px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: var(--text);
-            font-size: 0.9rem;
+            width: 100%; padding: 8px; background: var(--bg);
+            border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text); font-size: 0.9rem;
         }
         input[type="number"]:focus { outline: none; border-color: var(--accent); }
+        .spinner {
+            width: 14px; height: 14px; border: 2px solid transparent;
+            border-top-color: currentColor; border-radius: 50%;
+            animation: spin 0.6s linear infinite; display: none;
+        }
+        .loading .spinner { display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Video modal */
+        .video-modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.82);
+            display: none; align-items: center; justify-content: center;
+            z-index: 3000; padding: 24px;
+        }
+        .video-modal.open { display: flex; }
+        .video-modal-content {
+            width: min(960px, 100%); background: var(--panel);
+            border: 1px solid var(--border); border-radius: 12px;
+            overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.45);
+        }
+        .video-modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 0.85rem;
+        }
+        .video-modal-header .meta { color: var(--text-secondary); font-size: 0.78rem; }
+        .video-modal video { width: 100%; max-height: 70vh; background: #000; display: block; }
+        .video-modal-actions {
+            display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border);
+        }
+        .btn-close {
+            background: transparent; border: none; color: var(--text-secondary);
+            font-size: 1.2rem; cursor: pointer; padding: 4px 8px;
+        }
+        .btn-close:hover { color: var(--text); }
     </style>
 </head>
 <body>
+    <div class="nav-header">
+        <a href="/ui">Search</a>
+        <a href="/process">Process</a>
+        <a class="active" href="/batch_answer.html">Batch</a>
+    </div>
+
     <div class="header">
-        <h1>📝 Batch Answer Submission</h1>
-        <p>Submit ranked answers for 100 queries (TKIS + VKIS)</p>
+        <h1>Batch Answer Submission</h1>
+        <p id="headerSubtitle">Submit ranked answers for 100 queries (TKIS + VKIS + Q&A + TRAKE)</p>
     </div>
 
     <div class="container">
         <div class="sidebar">
             <div>
-                <label class="section-label">📁 Load Questions</label>
+                <label class="section-label">Load Questions</label>
                 <div class="upload-zone" id="uploadZone">
                     <input id="csvUpload" type="file" accept=".csv" />
                     <p>Drop CSV here or click</p>
@@ -236,7 +281,7 @@
             </div>
 
             <div>
-                <label class="section-label">📊 Progress</label>
+                <label class="section-label">Progress</label>
                 <div class="progress-bar">
                     <div class="progress-fill" id="progressFill" style="width: 0%"></div>
                 </div>
@@ -247,25 +292,29 @@
             </div>
 
             <div>
-                <label class="section-label">🎯 Navigation</label>
+                <label class="section-label">Navigation</label>
                 <div class="btn-row">
-                    <button class="btn btn-secondary" onclick="prevQuestion()">← Previous</button>
+                    <button class="btn btn-secondary" onclick="prevQuestion()">&#8592; Previous</button>
                     <input id="gotoIdx" type="number" min="0" max="99" placeholder="Go to #" />
                     <button class="btn btn-secondary" onclick="gotoQuestion()">Go</button>
-                    <button class="btn btn-secondary" onclick="nextQuestion()">Next →</button>
+                    <button class="btn btn-secondary" onclick="nextQuestion()">Next &#8594;</button>
                 </div>
             </div>
 
             <div>
-                <label class="section-label">⚡ Auto Fill</label>
+                <label class="section-label">Auto Fill</label>
                 <div class="btn-row">
-                    <button id="autoCurrentBtn" class="btn btn-secondary" onclick="autoFillCurrent()">Auto current</button>
-                    <button id="autoAllBtn" class="btn btn-secondary" onclick="autoFillAll()">Auto all</button>
+                    <button id="autoCurrentBtn" class="btn btn-secondary" onclick="autoFillCurrent()">
+                        <span class="spinner"></span>Auto current
+                    </button>
+                    <button id="autoAllBtn" class="btn btn-secondary" onclick="autoFillAll()">
+                        <span class="spinner"></span>Auto all
+                    </button>
                 </div>
             </div>
 
             <div>
-                <label class="section-label">⬇️ Export</label>
+                <label class="section-label">Export</label>
                 <button class="btn btn-primary" onclick="exportCSV()" style="width: 100%;">Export CSV</button>
             </div>
         </div>
@@ -277,18 +326,38 @@
                         <div class="question-id" id="qId">Q_0001</div>
                         <span class="question-type" id="qType">TKIS</span>
                         <div class="question-text" id="qText">Loading...</div>
+                        <div id="qExtraFields"></div>
                         <img id="qImage" class="question-image" style="display: none;" />
                     </div>
 
                     <div style="flex: 1; display: flex; flex-direction: column; margin-top: 12px;">
-                        <label class="section-label">📌 Top 100 Answers</label>
+                        <label class="section-label">Top 100 Answers</label>
                         <div class="answers-box" id="answersBox"></div>
                     </div>
                 </div>
                 <div id="emptyState" class="empty-state">
-                    <div>📤</div>
+                    <div>&#128229;</div>
                     <p>Upload questions.csv to get started</p>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video modal -->
+    <div class="video-modal" id="videoModal" onclick="if(event.target===this)closeVideoModal()">
+        <div class="video-modal-content">
+            <div class="video-modal-header">
+                <div>
+                    <div id="videoModalTitle">Video preview</div>
+                    <div class="meta" id="videoModalMeta"></div>
+                </div>
+                <button class="btn-close" type="button" onclick="closeVideoModal()">&times;</button>
+            </div>
+            <video id="videoPlayer" controls preload="metadata"></video>
+            <div class="video-modal-actions">
+                <button class="btn btn-secondary" type="button" onclick="seekVideoRelative(-5)">-5s</button>
+                <button class="btn btn-secondary" type="button" onclick="seekVideoRelative(5)">+5s</button>
+                <button class="btn btn-primary" type="button" onclick="replayAtFrame()">Replay frame</button>
             </div>
         </div>
     </div>
@@ -299,6 +368,7 @@
         let answers = {};
         let currentIdx = -1;
         let autoRunning = false;
+        let videoModalState = { videoId: '', frameIdx: 0, timestamp: 0, fps: 25 };
 
         // CSV upload
         document.getElementById('uploadZone').addEventListener('click', () => document.getElementById('csvUpload').click());
@@ -319,6 +389,22 @@
             reader.readAsText(file);
         });
 
+        // Drag-and-drop
+        document.getElementById('uploadZone').addEventListener('dragover', (e) => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--accent)'; });
+        document.getElementById('uploadZone').addEventListener('dragleave', (e) => { e.currentTarget.style.borderColor = ''; });
+        document.getElementById('uploadZone').addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.currentTarget.style.borderColor = '';
+            const file = e.dataTransfer.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try { parseCSV(evt.target.result); currentIdx = 0; renderQuestion(); toast('Loaded ' + allQuestions.length + ' questions', 'ok'); }
+                catch (err) { toast('Error loading CSV: ' + err.message, 'error'); }
+            };
+            reader.readAsText(file);
+        });
+
         function parseCSV(csv) {
             const lines = csv.trim().split('\n');
             allQuestions = [];
@@ -326,20 +412,14 @@
             for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (!line) continue;
-                
-                // Simple CSV parse (handle quoted values)
+
                 const parts = [];
                 let current = '';
                 let inQuotes = false;
                 for (let j = 0; j < line.length; j++) {
-                    if (line[j] === '"') {
-                        inQuotes = !inQuotes;
-                    } else if (line[j] === ',' && !inQuotes) {
-                        parts.push(current.trim());
-                        current = '';
-                    } else {
-                        current += line[j];
-                    }
+                    if (line[j] === '"') { inQuotes = !inQuotes; }
+                    else if (line[j] === ',' && !inQuotes) { parts.push(current.trim()); current = ''; }
+                    else { current += line[j]; }
                 }
                 parts.push(current.trim());
 
@@ -351,6 +431,11 @@
                     task: cleanTask,
                     text: text,
                     query_image: queryImage,
+                    // Q&A fields: text may contain "description|question" separated by pipe
+                    description: cleanTask === 'QA' ? (text || '').split('|')[0].trim() : undefined,
+                    question: cleanTask === 'QA' ? (text || '').split('|').slice(1).join('|').trim() : undefined,
+                    // TRAKE: text contains "description", query_image contains "event1|event2|..."
+                    events: cleanTask === 'TRAKE' ? (queryImage || '').split('|').map(s => s.trim()).filter(Boolean) : undefined,
                 });
                 answers[queryId] = Array(100).fill('');
             }
@@ -370,10 +455,13 @@
             document.getElementById('qType').textContent = q.task;
             document.getElementById('qType').className = 'question-type ' + q.task;
 
+            const extra = document.getElementById('qExtraFields');
+            extra.innerHTML = '';
+
             if (q.task === 'TKIS') {
-                document.getElementById('qText').textContent = q.text;
+                document.getElementById('qText').textContent = q.text || '(empty)';
                 document.getElementById('qImage').style.display = 'none';
-            } else {
+            } else if (q.task === 'VKIS') {
                 document.getElementById('qText').textContent = '(Visual Query Image)';
                 if (q.query_image) {
                     document.getElementById('qImage').src = q.query_image;
@@ -381,6 +469,18 @@
                 } else {
                     document.getElementById('qImage').style.display = 'none';
                 }
+            } else if (q.task === 'QA') {
+                document.getElementById('qText').textContent = q.description || '(empty)';
+                if (q.question) {
+                    extra.innerHTML = '<div style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px"><div style="font-size:0.72rem;color:var(--text-secondary);font-weight:600;margin-bottom:4px">QUESTION</div><div style="font-size:0.9rem;color:#00b4d8">' + escapeHtml(q.question) + '</div></div>';
+                }
+                document.getElementById('qImage').style.display = 'none';
+            } else if (q.task === 'TRAKE') {
+                document.getElementById('qText').textContent = q.text || '(empty)';
+                if (q.events && q.events.length) {
+                    extra.innerHTML = '<div style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px"><div style="font-size:0.72rem;color:var(--text-secondary);font-weight:600;margin-bottom:4px">EVENTS (' + q.events.length + ')</div>' + q.events.map((ev, i) => '<div style="font-size:0.82rem;color:#e056a0;margin-bottom:2px">' + (i + 1) + '. ' + escapeHtml(ev) + '</div>').join('') + '</div>';
+                }
+                document.getElementById('qImage').style.display = 'none';
             }
 
             renderAnswers(q.query_id);
@@ -393,16 +493,53 @@
             box.innerHTML = '';
 
             for (let i = 0; i < 100; i++) {
+                const val = ansList[i] || '';
                 const row = document.createElement('div');
-                row.className = 'answer-input-row';
+                row.className = 'answer-slot' + (val ? ' has-value' : '');
                 const padded = String(i + 1).padStart(3, '0');
-                row.innerHTML = `
-                    <label>#${padded}</label>
-                    <input type="text" placeholder="video.mp4,123"
-                           data-idx="${i}"
-                           value="${ansList[i] || ''}"
-                           onchange="updateAnswer('${queryId}', this.dataset.idx, this.value)" />
-                `;
+
+                let thumbHtml = '<div class="no-thumb">#' + padded + '</div>';
+                let infoHtml = '<input type="text" placeholder="video.mp4,123" data-idx="' + i + '" value="' + escapeAttr(val) + '" />';
+
+                if (val) {
+                    const parts = val.split(',');
+                    const vid = parts[0] || '';
+                    const fIdx = parts[1] || '';
+                    if (vid && fIdx !== '') {
+                        thumbHtml = '<img src="/api/frame/' + encodeURIComponent(vid) + '/' + fIdx + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\'" alt="Frame" loading="lazy"><div class="no-thumb" style="display:none">N/A</div>';
+                    }
+                    const extraInfo = parts[2] ? '<span class="slot-ans">' + escapeHtml(parts[2]) + '</span>' : '';
+                    infoHtml = '<div class="slot-info"><span class="slot-vid">' + escapeHtml(vid) + '</span> : ' + fIdx + extraInfo + '</div><input type="text" data-idx="' + i + '" value="' + escapeAttr(val) + '" style="display:none" />';
+                }
+
+                row.innerHTML =
+                    '<label>#' + padded + '</label>' +
+                    '<div class="thumb">' + thumbHtml + '</div>' +
+                    infoHtml;
+
+                row.addEventListener('click', function(e) {
+                    if (e.target.tagName === 'INPUT') return;
+                    const input = row.querySelector('input');
+                    if (input) { input.style.display = 'block'; input.focus(); input.select(); row.querySelector('.slot-info').style.display = 'none'; }
+                    // Also open video if we have a value
+                    if (val) {
+                        const p = val.split(',');
+                        if (p[0] && p[1] !== undefined) openVideoModal(p[0], parseInt(p[1]), 0);
+                    }
+                });
+
+                const input = row.querySelector('input');
+                if (input) {
+                    input.addEventListener('change', function() {
+                        updateAnswer(queryId, this.dataset.idx, this.value);
+                        renderAnswers(queryId);
+                        updateProgress();
+                    });
+                    input.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') { this.blur(); }
+                    });
+                }
+
                 box.appendChild(row);
             }
         }
@@ -412,29 +549,27 @@
             answers[queryId][parseInt(idx)] = value.trim();
         }
 
+        function escapeHtml(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function escapeAttr(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
         function nextQuestion() {
-            if (currentIdx < allQuestions.length - 1) {
-                currentIdx++;
-                renderQuestion();
-            }
+            if (currentIdx < allQuestions.length - 1) { currentIdx++; renderQuestion(); }
         }
 
         function prevQuestion() {
-            if (currentIdx > 0) {
-                currentIdx--;
-                renderQuestion();
-            }
+            if (currentIdx > 0) { currentIdx--; renderQuestion(); }
         }
 
         function gotoQuestion() {
             const idx = parseInt(document.getElementById('gotoIdx').value);
             if (idx >= 0 && idx < allQuestions.length) {
-                currentIdx = idx;
-                renderQuestion();
-                document.getElementById('gotoIdx').value = '';
-            } else {
-                toast('Invalid question number', 'error');
-            }
+                currentIdx = idx; renderQuestion(); document.getElementById('gotoIdx').value = '';
+            } else { toast('Invalid question number', 'error'); }
         }
 
         function updateProgress() {
@@ -450,14 +585,27 @@
             autoRunning = isRunning;
             document.getElementById('autoCurrentBtn').disabled = isRunning;
             document.getElementById('autoAllBtn').disabled = isRunning;
+            document.getElementById('autoCurrentBtn').classList.toggle('loading', isRunning);
+            document.getElementById('autoAllBtn').classList.toggle('loading', isRunning);
         }
 
-        function normalizeAnswersFromResults(results) {
+        function normalizeAnswersFromResults(results, taskType) {
             const out = [];
             for (const r of (results || []).slice(0, 100)) {
                 const videoId = (r.video_id || '').trim();
                 const frameIdx = Number.isFinite(r.frame_idx) ? r.frame_idx : parseInt(r.frame_idx || 0, 10);
-                if (videoId) out.push(videoId + ',' + (Number.isFinite(frameIdx) ? frameIdx : 0));
+                if (!videoId) continue;
+
+                if (taskType === 'QA') {
+                    const ans = (r.answer || '').replace(/"/g, '""');
+                    out.push(videoId + ',' + frameIdx + ',"' + ans + '"');
+                } else if (taskType === 'TRAKE') {
+                    // TRAKE: store video_id followed by frame indices if available
+                    const frames = r.frames || r.aligned_frames || [frameIdx];
+                    out.push(videoId + ',' + frames.join(','));
+                } else {
+                    out.push(videoId + ',' + frameIdx);
+                }
             }
             while (out.length < 100) out.push('');
             return out.slice(0, 100);
@@ -467,7 +615,6 @@
             if (q.task === 'TKIS') {
                 const text = (q.text || '').trim();
                 if (!text) throw new Error('Empty TKIS text');
-
                 const resp = await fetch(`${API}/api/search?expand_neighbors=false&dedup=true`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -478,6 +625,37 @@
                 return payload.results || [];
             }
 
+            if (q.task === 'QA') {
+                const description = (q.description || q.text || '').trim();
+                const question = (q.question || '').trim();
+                if (!description) throw new Error('Empty Q&A description');
+                if (!question) throw new Error('Empty Q&A question');
+                const resp = await fetch(`${API}/api/qa/search`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ description, question, top_k: 100 }),
+                });
+                const payload = await resp.json();
+                if (!resp.ok) throw new Error(payload.detail || 'Q&A search failed');
+                return payload.results || [];
+            }
+
+            if (q.task === 'TRAKE') {
+                const text = (q.text || '').trim();
+                const events = q.events || [];
+                if (!text) throw new Error('Empty TRAKE description');
+                if (!events.length) throw new Error('No TRAKE events');
+                const resp = await fetch(`${API}/api/trake`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ description: text, events, top_k: 50 }),
+                });
+                const payload = await resp.json();
+                if (!resp.ok) throw new Error(payload.detail || 'TRAKE failed');
+                return payload.results || [];
+            }
+
+            // VKIS fallback
             const imageRef = (q.query_image || '').trim();
             if (!imageRef) throw new Error('Missing VKIS query_image');
 
@@ -488,11 +666,7 @@
                 const formData = new FormData();
                 formData.append('file', imageBlob, imageRef.split('/').pop() || 'query.jpg');
                 formData.append('top_k', '100');
-
-                const searchResp = await fetch(`${API}/api/search-image`, {
-                    method: 'POST',
-                    body: formData,
-                });
+                const searchResp = await fetch(`${API}/api/search-image`, { method: 'POST', body: formData });
                 const payload = await searchResp.json();
                 if (!searchResp.ok) throw new Error(payload.detail || 'Image search failed');
                 return payload.results || [];
@@ -501,10 +675,7 @@
             const formData = new FormData();
             formData.append('image_path', imageRef);
             formData.append('top_k', '100');
-            const resp = await fetch(`${API}/api/search-image-path`, {
-                method: 'POST',
-                body: formData,
-            });
+            const resp = await fetch(`${API}/api/search-image-path`, { method: 'POST', body: formData });
             const payload = await resp.json();
             if (!resp.ok) throw new Error(payload.detail || 'Image path search failed');
             return payload.results || [];
@@ -512,16 +683,12 @@
 
         async function autoFillCurrent() {
             if (autoRunning) return;
-            if (currentIdx < 0 || currentIdx >= allQuestions.length) {
-                toast('No question selected', 'error');
-                return;
-            }
-
+            if (currentIdx < 0 || currentIdx >= allQuestions.length) { toast('No question selected', 'error'); return; }
             const q = allQuestions[currentIdx];
             setAutoButtonsState(true);
             try {
                 const results = await runSearchForQuestion(q);
-                answers[q.query_id] = normalizeAnswersFromResults(results);
+                answers[q.query_id] = normalizeAnswersFromResults(results, q.task);
                 renderAnswers(q.query_id);
                 updateProgress();
                 toast('Auto-filled ' + q.query_id, 'ok');
@@ -534,34 +701,25 @@
 
         async function autoFillAll() {
             if (autoRunning) return;
-            if (allQuestions.length === 0) {
-                toast('No questions loaded', 'error');
-                return;
-            }
-
+            if (allQuestions.length === 0) { toast('No questions loaded', 'error'); return; }
             setAutoButtonsState(true);
-            let okCount = 0;
-            let failCount = 0;
-
+            let okCount = 0, failCount = 0;
             try {
                 for (let i = 0; i < allQuestions.length; i++) {
                     const q = allQuestions[i];
                     currentIdx = i;
                     renderQuestion();
-
                     try {
                         const results = await runSearchForQuestion(q);
-                        answers[q.query_id] = normalizeAnswersFromResults(results);
+                        answers[q.query_id] = normalizeAnswersFromResults(results, q.task);
                         okCount++;
                     } catch (err) {
                         failCount++;
                         console.error('Auto-fill failed for', q.query_id, err);
                     }
-
                     updateProgress();
                     await new Promise(resolve => setTimeout(resolve, 150));
                 }
-
                 renderQuestion();
                 toast(`Auto-fill done: ${okCount} ok, ${failCount} failed`, failCount ? 'error' : 'ok');
             } finally {
@@ -570,15 +728,10 @@
         }
 
         function exportCSV() {
-            if (allQuestions.length === 0) {
-                toast('No questions loaded', 'error');
-                return;
-            }
+            if (allQuestions.length === 0) { toast('No questions loaded', 'error'); return; }
 
             const header = ['query_id'];
-            for (let i = 1; i <= 100; i++) {
-                header.push('answer_' + String(i).padStart(3, '0'));
-            }
+            for (let i = 1; i <= 100; i++) { header.push('answer_' + String(i).padStart(3, '0')); }
 
             const lines = [header.join(',')];
 
@@ -588,7 +741,7 @@
                 const cells = [qId];
                 for (const ans of ansList) {
                     if (ans) {
-                        cells.push('"' + ans + '"');
+                        cells.push('"' + ans.replace(/"/g, '""') + '"');
                     } else {
                         cells.push('');
                     }
@@ -608,6 +761,65 @@
             document.body.removeChild(link);
             toast('Exported submission.csv', 'ok');
         }
+
+        // ── Video modal ──────────────────────────────────────────
+
+        function openVideoModal(videoId, frameIdx, timestamp) {
+            videoModalState = { videoId, frameIdx, timestamp: Number(timestamp) || 0, fps: 25 };
+            const modal = document.getElementById('videoModal');
+            const player = document.getElementById('videoPlayer');
+            document.getElementById('videoModalTitle').textContent = videoId + ' \u00b7 frame ' + frameIdx;
+            document.getElementById('videoModalMeta').textContent = 'Loading video...';
+            player.src = API + '/api/video/' + encodeURIComponent(videoId);
+            modal.classList.add('open');
+
+            const seekToTarget = function () {
+                let t = videoModalState.timestamp;
+                if (!t && videoModalState.fps > 0) t = frameIdx / videoModalState.fps;
+                player.currentTime = Math.max(0, t);
+                document.getElementById('videoModalMeta').textContent = 'Frame ' + frameIdx + ' \u00b7 ' + player.currentTime.toFixed(2) + 's';
+            };
+
+            player.onloadedmetadata = seekToTarget;
+            player.oncanplay = seekToTarget;
+
+            fetch(API + '/api/video/' + encodeURIComponent(videoId) + '/info')
+                .then(r => r.ok ? r.json() : null)
+                .then(info => {
+                    if (!info) return;
+                    videoModalState.fps = info.fps || 25;
+                    if (!videoModalState.timestamp && frameIdx >= 0) {
+                        videoModalState.timestamp = frameIdx / videoModalState.fps;
+                    }
+                    seekToTarget();
+                })
+                .catch(() => {});
+        }
+
+        function closeVideoModal() {
+            const player = document.getElementById('videoPlayer');
+            player.pause();
+            player.removeAttribute('src');
+            player.load();
+            document.getElementById('videoModal').classList.remove('open');
+        }
+
+        function seekVideoRelative(delta) {
+            const player = document.getElementById('videoPlayer');
+            player.currentTime = Math.max(0, player.currentTime + delta);
+        }
+
+        function replayAtFrame() {
+            let t = videoModalState.timestamp;
+            if (!t && videoModalState.fps > 0) t = videoModalState.frameIdx / videoModalState.fps;
+            const player = document.getElementById('videoPlayer');
+            player.currentTime = Math.max(0, t);
+            player.play().catch(() => {});
+        }
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeVideoModal();
+        });
 
         function toast(m, t) {
             const el = document.createElement('div');
