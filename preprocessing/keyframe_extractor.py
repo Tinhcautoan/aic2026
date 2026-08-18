@@ -111,11 +111,12 @@ class _ModelWorker:
             return
 
         import sys as _sys
-        _tulip_dir = os.path.join(os.path.dirname(__file__), '..', 'tulip', 'open_clip', 'src')
-        if os.path.isdir(_tulip_dir) and _tulip_dir not in _sys.path:
-            _sys.path.insert(0, _tulip_dir)
-
+        _tulip_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'tulip', 'open_clip', 'src'))
+        _saved_paths = [p for p in _sys.path if 'tulip' in p and 'open_clip' in p]
+        for _p in _saved_paths:
+            _sys.path.remove(_p)
         import open_clip
+        _sys.path.extend(_saved_paths)
         import torch
 
         self._device = (
@@ -256,11 +257,12 @@ class KeyframeExtractor:
             return
 
         import sys as _sys
-        _tulip_dir = os.path.join(os.path.dirname(__file__), '..', 'tulip', 'open_clip', 'src')
-        if os.path.isdir(_tulip_dir) and _tulip_dir not in _sys.path:
-            _sys.path.insert(0, _tulip_dir)
-
+        _tulip_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'tulip', 'open_clip', 'src'))
+        _saved_paths = [p for p in _sys.path if 'tulip' in p and 'open_clip' in p]
+        for _p in _saved_paths:
+            _sys.path.remove(_p)
         import open_clip
+        _sys.path.extend(_saved_paths)
         import torch
 
         self._device = (
