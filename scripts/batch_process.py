@@ -172,7 +172,7 @@ Examples:
             ansList = submission.get(query_id, [''] * 100)
             row = [query_id]
             for ans in ansList:
-                row.append(f'"{ans}"' if ans else '')
+                row.append(ans if ans else '')
             writer.writerow(row)
     
     print(f" ✓ Written\n")
