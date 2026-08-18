@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import argparse
-from open_clip import create_model_and_transforms, get_tokenizer, get_model_config
+from tulip_open_clip import create_model_and_transforms, get_tokenizer, get_model_config
 import glob
 import re
 import wandb

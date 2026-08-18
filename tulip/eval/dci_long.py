@@ -6,7 +6,7 @@ from PIL import Image
 import pandas as pd
 import numpy as np
 
-from open_clip import create_model_and_transforms, get_tokenizer, get_model_config
+from tulip_open_clip import create_model_and_transforms, get_tokenizer, get_model_config
 from tqdm import tqdm
 
 class local_dataset(data.Dataset):
