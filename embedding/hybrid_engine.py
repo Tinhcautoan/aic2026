@@ -112,7 +112,11 @@ class HybridEmbeddingEngine:
 
     async def async_encode_image(self, image: Image.Image) -> dict:
         """Asynchronously encode an image with both models running in parallel."""
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         clip_task = loop.run_in_executor(
             self._executor, self.clip_encoder.encode_image, image
         )
@@ -124,7 +128,11 @@ class HybridEmbeddingEngine:
 
     async def async_encode_text(self, text: str) -> dict:
         """Asynchronously encode text with both models running in parallel."""
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         clip_task = loop.run_in_executor(
             self._executor, self.clip_encoder.encode_text, text
         )

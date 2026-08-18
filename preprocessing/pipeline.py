@@ -107,18 +107,20 @@ class PreprocessingPipeline:
         return {
             "video_id": vid, "video_path": video_path,
             "keyframes": len(keyframes), "embeddings": len(keyframes) * 2,
-            "ocr_enabled": False, "asr_enabled": False,
+            "ocr_enabled": self.ocr_enabled, "asr_enabled": self.asr_enabled,
             "processing_time": elapsed, "status": "success",
         }
 
-    def process_batch(self, video_paths: List[str], save_keyframes: bool = False, max_workers: int = 4) -> List[dict]:
+    def process_batch(self, video_paths, save_keyframes=False, max_workers=4):
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         results = []
-        for vp in video_paths:
-            try:
-                results.append(self.process_video(video_path=vp, save_keyframes=save_keyframes))
-            except Exception as e:
-                logger.error(f"Failed: {vp}: {e}")
-                results.append({"video_path": vp, "status": "error", "error": str(e)})
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(self.process_video, video_path=vp, save_keyframes=save_keyframes): vp for vp in video_paths}
+            for future in as_completed(futures):
+                try:
+                    results.append(future.result())
+                except Exception as e:
+                    results.append({"status": "error", "error": str(e)})
         return results
 
     def cleanup(self):
