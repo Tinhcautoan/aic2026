@@ -799,7 +799,7 @@ def create_app() -> FastAPI:
             video=item.video,
             question=item.question,
             answer=out.get("answer", ""),
-            evidence_video_id=out.get("evidence_video_id") or video_id,
+            evidence_video_id=out.get("evidence_video_id") or item.video,
             evidence_frame_idx=out.get("evidence_frame_idx"),
             evidence_timestamp=out.get("evidence_timestamp"),
             confidence=out.get("confidence", 0.0),
