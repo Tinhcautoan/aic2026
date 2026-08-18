@@ -16,6 +16,21 @@ from .tulip_encoder import TULIPEncoder
 from .siglip2_encoder import SigLIP2Encoder
 from config import settings
 
+def _validate_cuda(device: str) -> str:
+    """Test if CUDA device works; return 'cpu' if not."""
+    if device == "cpu" or not device.startswith("cuda"):
+        return device
+    try:
+        t = torch.zeros(1, device=device)
+        _ = t + t
+        del t
+        torch.cuda.empty_cache()
+        return device
+    except Exception as e:
+        logger.warning(f"CUDA validation failed on {device}: {e}. Falling back to CPU.")
+        return "cpu"
+
+
 class HybridEmbeddingEngine:
     """
     Fused TULIP/CLIP + SigLIP2 embedding engine.
@@ -29,6 +44,7 @@ class HybridEmbeddingEngine:
             if settings.GPU_ENABLED and torch.cuda.is_available()
             else "cpu"
         )
+        self.device = _validate_cuda(self.device)
 
         logger.info("Initializing Hybrid Embedding Engine...")
         start_time = time.time()

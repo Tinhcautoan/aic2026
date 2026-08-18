@@ -123,7 +123,7 @@ class TULIPEncoder:
             self.model = self.model.half()
 
         self.model.eval()
-        self._tokenizer = tulip.tokenizer.SimpleTokenizer()
+        self._tokenizer = tulip.tokenizer.SimpleTokenizer(context_length=77)
         self.embedding_dim = settings.EMBEDDING_DIM_CLIP
 
         logger.info(

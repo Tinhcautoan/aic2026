@@ -71,6 +71,17 @@ class CrossEncoderReranker:
         )
         self.batch_size = batch_size
 
+        # Validate CUDA works on this device
+        if self.device.startswith("cuda"):
+            try:
+                t = torch.zeros(1, device=self.device)
+                _ = t + t
+                del t
+                torch.cuda.empty_cache()
+            except Exception as e:
+                logger.warning(f"CUDA validation failed for cross-encoder: {e}. Falling back to CPU.")
+                self.device = "cpu"
+
         logger.info(f"Loading Cross-Encoder '{self.model_name}' on {self.device}...")
         self.model = CrossEncoder(
             self.model_name,
