@@ -162,6 +162,43 @@ def _trake_pipeline(
 # Main
 # ------------------------------------------------------------------ #
 
+def _make_embedding_fn(engine):
+    """Wrap engine.encode_text to return tuple (clip_emb, siglip2_emb)."""
+    def embedding_fn(text):
+        embs = engine.encode_text(text)
+        return embs["clip"], embs["siglip2"]
+    return embedding_fn
+
+
+def _make_event_search_fn(store, engine):
+    """Create event_search_fn for TRAKE alignment.
+
+    Returns: fn(event_text, candidates) -> [(frame_idx, score), ...]
+    """
+    def event_search_fn(event_text, candidates):
+        embs = engine.encode_text(event_text)
+        clip_emb = embs["clip"]
+        siglip2_emb = embs["siglip2"]
+
+        results = []
+        for cand in candidates:
+            fi = cand["frame_idx"]
+            vid = cand.get("video_id", candidates[0].get("video_id", ""))
+            frame_embs = store.get_frame_embeddings(video_id=vid, frame_indices=[fi])
+            if not frame_embs:
+                continue
+            fe = frame_embs[0]
+            clip_sim = float(np.dot(clip_emb, fe["clip_emb"]))
+            siglip2_sim = float(np.dot(siglip2_emb, fe["siglip2_emb"]))
+            avg_sim = (clip_sim + siglip2_sim) / 2.0
+            results.append((fi, avg_sim))
+
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results
+
+    return event_search_fn
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run contest queries (TKIS/Q&A/TRAKE)")
     parser.add_argument("--queries-dir", required=True, help="Directory with query .txt files")
@@ -175,14 +212,23 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # --- Load models (placeholder — connect to real pipeline at runtime) ---
+    # --- Load models ---
     print("Loading models...", flush=True)
-    # from api.app import hybrid_pipeline, embedding_engine
-    # search_fn = hybrid_pipeline.search
-    # embedding_fn = embedding_engine.async_encode_text
-    # vlm_fn = answer_from_vlm  # from retrieval.vqa_llm
-    # For now, print instructions for when models are loaded:
-    print("Models not loaded yet — run with full pipeline when video library is ready.")
+
+    import numpy as np
+    from embedding.hybrid_engine import HybridEmbeddingEngine
+    from retrieval.persistent_store import PersistentVectorStore
+    from retrieval.vqa_llm import answer_from_vlm
+    from config import settings
+
+    engine = HybridEmbeddingEngine()
+    store = PersistentVectorStore(str(settings.DATA_DIR / "persistent_store"))
+    print(f"Loaded: {len(store._ids)} frames in store")
+
+    search_fn = store.hybrid_search
+    embedding_fn = _make_embedding_fn(engine)
+    vlm_fn = answer_from_vlm
+    event_search_fn = _make_event_search_fn(store, engine)
 
     txt_files = sorted(queries_dir.glob("*.txt"))
     if not txt_files:
@@ -197,13 +243,12 @@ def main():
 
         print(f"  [{mode.upper():5s}] {txt_path.name} → {csv_path.name}")
 
-        # Dispatch to appropriate pipeline (placeholder until models load)
         if mode == TKIS:
-            lines = []  # _tkis_pipeline(query_text, search_fn, embedding_fn, args.max_rows)
+            lines = _tkis_pipeline(query_text, search_fn, embedding_fn, args.max_rows)
         elif mode == QA:
-            lines = []  # _qa_pipeline(query_text, search_fn, embedding_fn, vlm_fn, args.top_k, args.max_rows)
+            lines = _qa_pipeline(query_text, search_fn, embedding_fn, vlm_fn, args.top_k, args.max_rows)
         elif mode == TRAKE:
-            lines = []  # _trake_pipeline(query_text, search_fn, embedding_fn, event_search_fn, args.trake_videos, args.max_rows)
+            lines = _trake_pipeline(query_text, search_fn, embedding_fn, event_search_fn, args.trake_videos, args.max_rows)
         else:
             lines = []
 

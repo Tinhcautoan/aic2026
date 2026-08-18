@@ -215,6 +215,27 @@ class PersistentVectorStore:
         
         return results
 
+    def get_frame_embeddings(self, video_id: str, frame_indices: List[int] = None) -> List[dict]:
+        """Get embeddings for specific frames in a video.
+
+        If frame_indices is None, returns all frames for the video.
+        Returns list of dicts with 'frame_idx', 'clip_emb', 'siglip2_emb'.
+        """
+        results = []
+        for i, frame_id in enumerate(self._ids):
+            meta = self._metadata.get(frame_id, {})
+            if meta.get("video_id") != video_id:
+                continue
+            fi = meta.get("frame_idx")
+            if frame_indices is not None and fi not in frame_indices:
+                continue
+            results.append({
+                "frame_idx": fi,
+                "clip_emb": self._embeddings_clip[i],
+                "siglip2_emb": self._embeddings_siglip2[i],
+            })
+        return results
+
     def get_collection_stats(self) -> Dict:
         """Return collection statistics."""
         return {
