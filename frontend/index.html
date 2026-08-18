@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Search</title>
+    <title>🎬 Video Competition</title>
     <style>
         :root {
             --bg: #0f0f14;
@@ -26,31 +26,124 @@
             overflow: hidden;
         }
 
+        /* ── Header ─────────────────────────────────────────── */
         .header {
             background: var(--panel);
             border-bottom: 1px solid var(--border);
-            padding: 14px 24px;
+            padding: 0 24px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            height: 52px;
             flex-shrink: 0;
+            gap: 20px;
         }
-        .header h1 { font-size: 1.1rem; font-weight: 600; }
-
+        .header h1 { font-size: 1.05rem; font-weight: 600; white-space: nowrap; }
+        .header .tabs { display: flex; gap: 4px; margin-left: 16px; }
+        .header .tabs button {
+            background: transparent; border: 1px solid transparent; color: var(--text-secondary);
+            padding: 6px 16px; border-radius: 6px; font-size: 0.82rem; font-weight: 600;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .header .tabs button:hover { color: var(--text); background: rgba(108,92,231,0.1); }
+        .header .tabs button.active {
+            background: var(--accent); color: #fff; border-color: var(--accent);
+        }
+        .header-right {
+            margin-left: auto; display: flex; align-items: center; gap: 16px; font-size: 0.78rem;
+        }
+        .header-right a {
+            color: var(--text-secondary); text-decoration: none; transition: color 0.15s;
+        }
+        .header-right a:hover { color: var(--accent); }
         .status-dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            background: var(--success); display: inline-block; margin-right: 6px;
+            width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px;
+            background: var(--success);
         }
         .status-dot.offline { background: var(--error); }
 
+        /* ── Main layout ────────────────────────────────────── */
         .main-container { display: flex; flex: 1; overflow: hidden; }
 
-        .results-panel {
-            flex: 1; overflow-y: auto; padding: 16px;
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            gap: 24px; align-content: start; align-items: start;
+        /* ── Left panel ─────────────────────────────────────── */
+        .control-panel {
+            width: 360px; min-width: 360px; background: var(--panel);
+            border-right: 1px solid var(--border);
+            padding: 20px; display: flex; flex-direction: column; gap: 14px;
+            flex-shrink: 0; overflow-y: auto;
+        }
+        .control-panel label {
+            font-size: 0.72rem; font-weight: 600; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;
+        }
+        .control-panel textarea,
+        .control-panel input[type="text"],
+        .control-panel input[type="number"] {
+            width: 100%; padding: 9px 11px; background: var(--bg);
+            border: 1px solid var(--border); border-radius: 7px;
+            color: var(--text); font-size: 0.88rem; outline: none;
+            font-family: inherit; transition: border-color 0.2s;
+        }
+        .control-panel textarea:focus,
+        .control-panel input:focus { border-color: var(--accent); }
+        .control-panel textarea { min-height: 64px; resize: vertical; }
+        .control-panel select {
+            width: 100%; padding: 8px 11px; background: var(--bg);
+            border: 1px solid var(--border); border-radius: 7px;
+            color: var(--text); font-size: 0.88rem; outline: none; cursor: pointer;
+        }
+        .mode-controls { display: none; flex-direction: column; gap: 14px; }
+        .mode-controls.active { display: flex; }
+
+        /* Upload zone */
+        .upload-zone {
+            border: 2px dashed var(--border); border-radius: 8px; padding: 14px;
+            text-align: center; cursor: pointer; font-size: 0.8rem; color: var(--text-secondary);
+        }
+        .upload-zone:hover { border-color: var(--accent); }
+        .upload-zone input { display: none; }
+        #imagePreviewBox img {
+            width: 100%; max-height: 180px; object-fit: cover;
+            border-radius: 8px; border: 1px solid var(--border); margin-top: 8px;
         }
 
+        /* ── Buttons ────────────────────────────────────────── */
+        .btn {
+            padding: 9px 18px; border: none; border-radius: 7px; font-size: 0.85rem;
+            font-weight: 600; cursor: pointer; transition: all 0.15s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-primary { background: var(--accent); color: #fff; flex: 1; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+        .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+        .btn-secondary:hover { border-color: var(--text-secondary); }
+        .btn-sm { padding: 6px 12px; font-size: 0.78rem; }
+        .btn-icon {
+            width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px;
+            background: rgba(108,92,231,0.15); color: var(--accent); font-size: 1.1rem;
+            display: inline-flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .btn-icon:hover { background: var(--accent); color: #fff; }
+        .btn-icon.danger { background: rgba(255,82,82,0.15); color: var(--error); }
+        .btn-icon.danger:hover { background: var(--error); color: #fff; }
+        .btn-row { display: flex; gap: 8px; }
+
+        /* ── Spinner ────────────────────────────────────────── */
+        .spinner {
+            width: 14px; height: 14px; border: 2px solid transparent;
+            border-top-color: currentColor; border-radius: 50%;
+            animation: spin 0.6s linear infinite; display: none;
+        }
+        .loading .spinner { display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Right panel ────────────────────────────────────── */
+        .results-panel {
+            flex: 1; overflow-y: auto; padding: 16px;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+            gap: 16px; align-content: start; align-items: start;
+        }
         .result-card {
             background: var(--panel); border: 1px solid var(--border);
             border-radius: 10px; overflow: hidden; cursor: pointer;
@@ -58,94 +151,59 @@
         }
         .result-card:hover {
             border-color: var(--accent); transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(108, 92, 231, 0.15);
+            box-shadow: 0 8px 24px rgba(108,92,231,0.15);
         }
         .result-card .frame-preview {
             width: 100%; aspect-ratio: 16/9; background: #12121a;
             display: flex; align-items: center; justify-content: center;
-            color: var(--text-secondary); font-size: 0.85rem; overflow: hidden;
+            color: var(--text-secondary); font-size: 0.8rem; overflow: hidden;
         }
         .result-card .frame-preview img { width: 100%; height: 100%; object-fit: cover; }
         .result-card .card-info { padding: 10px 12px; }
-        .result-card .video-id { font-size: 0.7rem; color: var(--accent); font-weight: 600; margin-bottom: 4px; }
-        .result-card .frame-meta { font-size: 0.72rem; color: var(--text-secondary); display: flex; justify-content: space-between; }
-        .result-card .scores { display: flex; gap: 6px; margin-top: 6px; font-size: 0.68rem; }
+        .result-card .video-id { font-size: 0.68rem; color: var(--accent); font-weight: 600; margin-bottom: 3px; }
+        .result-card .frame-meta {
+            font-size: 0.7rem; color: var(--text-secondary);
+            display: flex; justify-content: space-between;
+        }
+        .result-card .scores { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
         .score-badge {
-            background: rgba(108, 92, 231, 0.15); color: var(--accent);
-            padding: 2px 8px; border-radius: 4px; font-weight: 500;
+            background: rgba(108,92,231,0.15); color: var(--accent);
+            padding: 2px 7px; border-radius: 4px; font-size: 0.66rem; font-weight: 500;
         }
-        .score-badge.best { background: rgba(0, 214, 143, 0.15); color: var(--success); }
+        .score-badge.best { background: rgba(0,214,143,0.15); color: var(--success); }
+        .answer-text {
+            margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border);
+            font-size: 0.75rem; color: var(--text); line-height: 1.35;
+        }
+        .answer-label { color: var(--text-secondary); font-weight: 600; }
 
-        .control-panel {
-            width: 360px; background: var(--panel); border-left: 1px solid var(--border);
-            padding: 20px; display: flex; flex-direction: column; gap: 16px;
-            flex-shrink: 0; overflow-y: auto;
-        }
-        .control-panel label {
-            font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);
-            text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;
-        }
-        .control-panel textarea, .control-panel input {
-            width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border);
-            border-radius: 8px; color: var(--text); font-size: 0.9rem; outline: none;
-            font-family: inherit; transition: border-color 0.2s;
-        }
-        .control-panel textarea:focus, .control-panel input:focus { border-color: var(--accent); }
-        .control-panel textarea { min-height: 70px; resize: vertical; }
-        .control-panel select {
-            width: 100%; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border);
-            border-radius: 8px; color: var(--text); font-size: 0.9rem; outline: none; cursor: pointer;
-        }
-
-        .btn {
-            padding: 10px 20px; border: none; border-radius: 8px; font-size: 0.9rem;
-            font-weight: 600; cursor: pointer; transition: all 0.2s;
-        }
-        .btn-search { background: var(--accent); color: white; flex: 1; }
-        .btn-search:hover { opacity: 0.9; }
-        .btn-search:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-clear { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
-        .btn-row { display: flex; gap: 8px; }
-
-        .spinner {
-            width: 16px; height: 16px; border: 2px solid transparent;
-            border-top-color: white; border-radius: 50%;
-            animation: spin 0.6s linear infinite; display: none;
-        }
-        .loading .spinner { display: inline-block; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
+        /* ── Empty state ────────────────────────────────────── */
         .empty-state {
             display: flex; flex-direction: column; align-items: center;
-            justify-content: center; height: 100%; color: var(--text-secondary);
-            text-align: center; grid-column: 1 / -1;
+            justify-content: center; padding: 60px 20px;
+            color: var(--text-secondary); text-align: center;
+            grid-column: 1 / -1;
         }
-        .empty-state .icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.4; }
+        .empty-state .icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.35; }
 
-        .stats { display: flex; gap: 8px; font-size: 0.72rem; color: var(--text-secondary); }
-        .stats span { background: var(--bg); padding: 4px 10px; border-radius: 4px; }
-        .stats .val { color: var(--success); font-weight: 600; }
-
-        .csv-helper {
-            border-top: 1px solid var(--border); padding-top: 12px; display: flex; flex-direction: column; gap: 10px;
+        /* ── CSV export panel ───────────────────────────────── */
+        .csv-export-panel {
+            background: var(--panel); border-top: 1px solid var(--border);
+            padding: 10px 16px; flex-shrink: 0; display: none;
         }
-        .csv-helper textarea {
-            min-height: 110px; resize: vertical; font-size: 0.78rem; line-height: 1.45;
+        .csv-export-panel.visible { display: block; }
+        .csv-export-inner {
+            display: flex; align-items: flex-start; gap: 10px;
         }
-        .toast {
-            position: fixed; bottom: 20px; right: 20px; padding: 12px 20px;
-            border-radius: 8px; font-size: 0.85rem; z-index: 2000; animation: slideIn 0.3s;
+        .csv-export-panel textarea {
+            flex: 1; min-height: 48px; max-height: 90px; resize: vertical;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text); font-size: 0.72rem; font-family: monospace;
+            padding: 8px 10px; line-height: 1.4;
         }
-        .toast.error { background: var(--error); color: white; }
-        .toast.ok { background: var(--success); color: var(--bg); }
-        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        .csv-actions { display: flex; gap: 6px; flex-shrink: 0; padding-top: 2px; }
 
-        .mode-panel { display: none; }
-        .mode-panel.active.results-panel { display: grid; }
-        .mode-panel.active.vqa-table-wrap { display: block; flex: 1; overflow: auto; }
-        #searchControls.mode-panel.active,
-        #vqaControls.mode-panel.active { display: flex; flex-direction: column; gap: 12px; }
-
+        /* ── Video modal ────────────────────────────────────── */
         .video-modal {
             position: fixed; inset: 0; background: rgba(0,0,0,0.82);
             display: none; align-items: center; justify-content: center;
@@ -159,13 +217,10 @@
         }
         .video-modal-header {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 12px 16px; border-bottom: 1px solid var(--border);
-            font-size: 0.85rem;
+            padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 0.85rem;
         }
-        .video-modal-header .meta { color: var(--text-secondary); }
-        .video-modal video {
-            width: 100%; max-height: 70vh; background: #000; display: block;
-        }
+        .video-modal-header .meta { color: var(--text-secondary); font-size: 0.78rem; }
+        .video-modal video { width: 100%; max-height: 70vh; background: #000; display: block; }
         .video-modal-actions {
             display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border);
         }
@@ -175,624 +230,671 @@
         }
         .btn-close:hover { color: var(--text); }
 
-        .vqa-table-wrap {
-            flex: 1; overflow: auto; padding: 16px;
+        /* ── Toast ──────────────────────────────────────────── */
+        .toast {
+            position: fixed; bottom: 20px; right: 20px; padding: 12px 20px;
+            border-radius: 8px; font-size: 0.85rem; z-index: 4000;
+            animation: slideIn 0.3s;
         }
-        .vqa-table {
-            width: 100%; border-collapse: collapse; font-size: 0.82rem;
-        }
-        .vqa-table th, .vqa-table td {
-            border-bottom: 1px solid var(--border); padding: 10px 8px;
-            text-align: left; vertical-align: top;
-        }
-        .vqa-table th {
-            position: sticky; top: 0; background: var(--panel);
-            color: var(--text-secondary); font-size: 0.72rem; text-transform: uppercase;
-        }
-        .vqa-table tr:hover td { background: rgba(108, 92, 231, 0.06); }
-        .vqa-table input[type="text"] {
-            width: 100%; padding: 6px 8px; background: var(--bg);
-            border: 1px solid var(--border); border-radius: 6px; color: var(--text);
-            font-size: 0.8rem;
-        }
-        .vqa-table .link-btn {
-            background: none; border: none; color: var(--accent); cursor: pointer;
-            font-size: 0.78rem; padding: 0; text-decoration: underline;
-        }
-        .upload-zone {
-            border: 2px dashed var(--border); border-radius: 8px; padding: 12px;
-            text-align: center; cursor: pointer; font-size: 0.8rem; color: var(--text-secondary);
-        }
-        .upload-zone:hover { border-color: var(--accent); }
-        .upload-zone input { display: none; }
+        .toast.error { background: var(--error); color: #fff; }
+        .toast.ok { background: var(--success); color: var(--bg); }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        /* ── TRAKE event list ───────────────────────────────── */
+        .event-row { display: flex; gap: 6px; align-items: center; }
+        .event-row input { flex: 1; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🎬 Video Search</h1>
-        <div style="font-size:0.8rem;color:var(--text-secondary)">
-            <span class="status-dot" id="statusDot"></span>
-            <span id="statusText">Checking...</span>
-        </div>
+
+<!-- ════════════════════════════════════════════════════════════ HEADER -->
+<div class="header">
+    <h1>🎬 Video Competition</h1>
+    <div class="tabs" id="tabBar">
+        <button class="active" data-mode="tkis">TKIS</button>
+        <button data-mode="qa">Q&A</button>
+        <button data-mode="trake">TRAKE</button>
     </div>
+    <div class="header-right">
+        <a href="/process">Process</a>
+        <a href="/batch_answer.html">Batch</a>
+        <span><span class="status-dot" id="statusDot"></span><span id="statusText">Checking...</span></span>
+    </div>
+</div>
 
-    <div class="main-container">
-        <div class="results-panel mode-panel active" id="searchResultsPanel">
-            <div class="empty-state">
-                <div class="icon">🔍</div>
-                <p>Type what you're looking for and press Search</p>
-            </div>
-        </div>
+<!-- ════════════════════════════════════════════════════════════ MAIN -->
+<div class="main-container">
 
-        <div class="vqa-table-wrap mode-panel" id="vqaPanel">
-            <table class="vqa-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Video</th>
-                        <th>Question</th>
-                        <th>Answer</th>
-                        <th>Evidence</th>
-                    </tr>
-                </thead>
-                <tbody id="vqaTableBody">
-                    <tr><td colspan="5" style="text-align:center;color:var(--text-secondary);padding:32px">Upload test.csv to start VQA</td></tr>
-                </tbody>
-            </table>
-        </div>
+    <!-- ── LEFT PANEL ─────────────────────────────────────── -->
+    <div class="control-panel">
 
-        <div class="control-panel">
+        <!-- TKIS Controls -->
+        <div class="mode-controls active" id="tkisControls">
             <div>
-                <label>App mode</label>
-                <select id="appModeSelect">
-                    <option value="search" selected>KIS Search</option>
-                    <option value="vqa">VideoQA (VQA)</option>
-                </select>
-            </div>
-
-            <div id="searchControls" class="mode-panel active">
-            <div style="border-top:1px solid var(--border);padding-top:12px">
-                <label>🔍 Search Mode</label>
-                <select id="searchModeSelect">
+                <label>Search Mode</label>
+                <select id="tkisSearchMode">
                     <option value="text" selected>Text query</option>
-                    <option value="image">Image query (VKIS)</option>
+                    <option value="image">Image query</option>
                 </select>
             </div>
-
-            <div id="textSearchBox">
-                <label>Search text</label>
-                <textarea id="queryInput" placeholder="Describe a scene...&#10;e.g., 'a person presenting slides'"></textarea>
+            <div id="tkisTextBox">
+                <label>Description</label>
+                <textarea id="tkisQuery" placeholder="Describe the scene...&#10;e.g. 'a person presenting slides'"></textarea>
             </div>
-
-            <div id="imageSearchBox" style="display:none">
+            <div id="tkisImageBox" style="display:none">
                 <label>Upload image</label>
-                <input id="queryImageInput" type="file" accept="image/*" />
-                <div id="imagePreviewBox" style="margin-top:10px;display:none">
-                    <img id="imagePreview" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;border:1px solid var(--border)" />
+                <div class="upload-zone" id="tkisUploadZone">
+                    <input id="tkisImageInput" type="file" accept="image/*">
+                    <span>Click to upload image</span>
+                </div>
+                <div id="tkisImagePreview" style="display:none">
+                    <img id="tkisImageThumb" src="" alt="preview">
                 </div>
             </div>
-
             <div>
-                <label>Results</label>
-                <select id="topKSelect">
-                    <option value="5">5</option>
-                    <option value="10">10</option>
-                    <option value="20">20</option>
-                    <option value="50">50</option>
+                <label>Top-K</label>
+                <select id="tkisTopK">
+                    <option value="5">5</option><option value="10">10</option>
+                    <option value="20">20</option><option value="50">50</option>
                     <option value="100" selected>100</option>
                 </select>
             </div>
-
-            <div>
-                <label>Query ID</label>
-                <input id="queryIdInput" type="text" value="Q_0001" placeholder="Q_0001" />
-            </div>
-
             <div class="btn-row">
-                <button class="btn btn-search" id="searchBtn" onclick="doSearch()">
-                    <span class="spinner"></span>
-                    Search
+                <button class="btn btn-primary" id="tkisSearchBtn" onclick="doTkisSearch()">
+                    <span class="spinner"></span>Search
                 </button>
-                <button class="btn btn-clear" onclick="clearSearch()">Clear</button>
+                <button class="btn btn-secondary" onclick="clearResults()">Clear</button>
             </div>
+            <div style="border-top:1px solid var(--border);padding-top:12px">
+                <label>CSV Helper</label>
+                <div class="btn-row" style="margin-bottom:8px">
+                    <button class="btn btn-primary btn-sm" onclick="buildTkisCsv()">Build Row</button>
+                    <button class="btn btn-secondary btn-sm" onclick="copyCsv()">Copy</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadCsv()">Download</button>
+                </div>
+                <textarea id="tkisCsvPreview" readonly placeholder="query_id,answer_001,...,answer_100" style="width:100%;min-height:80px;max-height:140px;resize:vertical;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.72rem;font-family:monospace;padding:8px;line-height:1.4"></textarea>
+            </div>
+        </div>
 
-            <div class="csv-helper">
-                <label>CSV Answer Helper</label>
-                <div class="btn-row">
-                    <button class="btn btn-search" id="csvBuildBtn" type="button" onclick="buildCsvRow()">Use current results</button>
-                    <button class="btn btn-clear" id="csvCopyBtn" type="button" onclick="copyCsvRow()">Copy row</button>
-                </div>
-                <textarea id="csvPreview" readonly placeholder="query_id,answer_001,...,answer_100"></textarea>
+        <!-- Q&A Controls -->
+        <div class="mode-controls" id="qaControls">
+            <div>
+                <label>Description</label>
+                <textarea id="qaDescription" placeholder="Describe the video content..."></textarea>
             </div>
+            <div>
+                <label>Question</label>
+                <input type="text" id="qaQuestion" placeholder="What are you asking?">
+            </div>
+            <div>
+                <label>Top-K</label>
+                <select id="qaTopK">
+                    <option value="5">5</option><option value="10">10</option>
+                    <option value="20">20</option><option value="50">50</option>
+                    <option value="100" selected>100</option>
+                </select>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-primary" id="qaSearchBtn" onclick="doQaSearch()">
+                    <span class="spinner"></span>Search
+                </button>
+                <button class="btn btn-secondary" onclick="clearResults()">Clear</button>
+            </div>
+        </div>
 
-            <div class="stats" id="statsBar" style="display:none">
-                <span>Found: <b class="val" id="resultCount">0</b></span>
-                <span>in <b class="val" id="latencyMs">0ms</b></span>
+        <!-- TRAKE Controls -->
+        <div class="mode-controls" id="trakeControls">
+            <div>
+                <label>Main Description</label>
+                <textarea id="trakeDescription" placeholder="Overall video description..."></textarea>
             </div>
+            <div>
+                <label>Events (in order)</label>
+                <div id="trakeEventList"></div>
+                <button class="btn btn-secondary btn-sm" onclick="addTrakeEvent()" style="margin-top:6px;width:100%">+ Add Event</button>
             </div>
+            <div>
+                <label>Top-K (default 50)</label>
+                <input type="number" id="trakeTopK" value="50" min="1" max="500">
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-primary" id="trakeAlignBtn" onclick="doTrakeAlign()">
+                    <span class="spinner"></span>Align Events
+                </button>
+                <button class="btn btn-secondary" onclick="clearResults()">Clear</button>
+            </div>
+        </div>
 
-            <div id="vqaControls" class="mode-panel">
-                <label>VideoQA dataset</label>
-                <div class="upload-zone" id="vqaUploadZone">
-                    <input id="vqaCsvInput" type="file" accept=".csv" />
-                    <p>Upload test.csv or train.csv</p>
-                </div>
-                <div class="btn-row">
-                    <button class="btn btn-search" id="vqaAnswerCurrentBtn" type="button" onclick="vqaAnswerCurrent()">Answer current row</button>
-                    <button class="btn btn-search" id="vqaAnswerAllBtn" type="button" onclick="vqaAnswerAll()">Answer all</button>
-                </div>
-                <div class="btn-row">
-                    <button class="btn btn-clear" type="button" onclick="exportVqaSubmission()">Export submission.csv</button>
-                </div>
-                <div class="stats">
-                    <span>Rows: <b class="val" id="vqaRowCount">0</b></span>
-                    <span>Answered: <b class="val" id="vqaAnsweredCount">0</b></span>
-                </div>
-            </div>
+    </div>
+
+    <!-- ── RIGHT PANEL (results grid) ─────────────────────── -->
+    <div class="results-panel" id="resultsPanel">
+        <div class="empty-state">
+            <div class="icon">🔍</div>
+            <p>Select a mode and search to begin</p>
         </div>
     </div>
 
-    <div class="video-modal" id="videoModal" onclick="if(event.target===this) closeVideoModal()">
-        <div class="video-modal-content">
-            <div class="video-modal-header">
-                <div>
-                    <div id="videoModalTitle">Video preview</div>
-                    <div class="meta" id="videoModalMeta"></div>
-                </div>
-                <button class="btn-close" type="button" onclick="closeVideoModal()" aria-label="Close">✕</button>
-            </div>
-            <video id="videoPlayer" controls preload="metadata"></video>
-            <div class="video-modal-actions">
-                <button class="btn btn-clear" type="button" onclick="seekVideoRelative(-5)">-5s</button>
-                <button class="btn btn-clear" type="button" onclick="seekVideoRelative(5)">+5s</button>
-                <button class="btn btn-search" type="button" onclick="replayAtFrame()">Replay frame</button>
-            </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ CSV EXPORT -->
+<div class="csv-export-panel" id="csvExportPanel">
+    <div class="csv-export-inner">
+        <textarea id="csvExportText" readonly placeholder="CSV output will appear here..."></textarea>
+        <div class="csv-actions">
+            <button class="btn btn-primary btn-sm" onclick="copyCsv()">Copy All</button>
+            <button class="btn btn-secondary btn-sm" onclick="downloadCsv()">Download CSV</button>
         </div>
     </div>
+</div>
 
-    <script>
-        const API = window.location.origin;
-        let currentResults = [];
-        let vqaRows = [];
-        let vqaRunning = false;
-        let videoModalState = { videoId: '', frameIdx: 0, timestamp: 0, fps: 25 };
+<!-- ════════════════════════════════════════════════════════════ VIDEO MODAL -->
+<div class="video-modal" id="videoModal" onclick="if(event.target===this)closeVideoModal()">
+    <div class="video-modal-content">
+        <div class="video-modal-header">
+            <div>
+                <div id="videoModalTitle">Video preview</div>
+                <div class="meta" id="videoModalMeta"></div>
+            </div>
+            <button class="btn-close" type="button" onclick="closeVideoModal()">&times;</button>
+        </div>
+        <video id="videoPlayer" controls preload="metadata"></video>
+        <div class="video-modal-actions">
+            <button class="btn btn-secondary" type="button" onclick="seekVideoRelative(-5)">-5s</button>
+            <button class="btn btn-secondary" type="button" onclick="seekVideoRelative(5)">+5s</button>
+            <button class="btn btn-primary" type="button" onclick="replayAtFrame()">Replay frame</button>
+        </div>
+    </div>
+</div>
 
-        function parseCsvLine(line) {
-            const parts = [];
-            let current = '';
-            let inQuotes = false;
-            for (let j = 0; j < line.length; j++) {
-                if (line[j] === '"') inQuotes = !inQuotes;
-                else if (line[j] === ',' && !inQuotes) { parts.push(current.trim()); current = ''; }
-                else current += line[j];
-            }
-            parts.push(current.trim());
-            return parts;
+<!-- ════════════════════════════════════════════════════════════ SCRIPT -->
+<script>
+(function () {
+    'use strict';
+
+    const API = window.location.origin;
+    let currentMode = 'tkis';
+    let currentResults = [];
+    let searchTimer = null;
+    let csvRows = [];
+    let videoModalState = { videoId: '', frameIdx: 0, timestamp: 0, fps: 25 };
+
+    /* ── Utilities ──────────────────────────────────────────── */
+
+    function $(id) { return document.getElementById(id); }
+
+    function toast(msg, type) {
+        const el = document.createElement('div');
+        el.className = 'toast ' + (type || 'ok');
+        el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 3000);
+    }
+
+    function escapeHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+            .replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function escapeJs(s) {
+        return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    }
+
+    function setLoading(btnId, on) {
+        const btn = $(btnId);
+        if (!btn) return;
+        btn.disabled = on;
+        btn.classList.toggle('loading', on);
+    }
+
+    /* ── Status ─────────────────────────────────────────────── */
+
+    async function checkStatus() {
+        try {
+            const r = await fetch(API + '/api/status');
+            const d = await r.json();
+            $('statusDot').className = 'status-dot';
+            const n = d.milvus?.num_entities || 0;
+            $('statusText').textContent = n > 0 ? `Ready \u00b7 ${n} frames` : 'Ready \u00b7 no videos';
+        } catch (e) {
+            $('statusDot').className = 'status-dot offline';
+            $('statusText').textContent = 'Offline';
         }
+    }
 
-        function openVideoModal(videoId, frameIdx, timestamp) {
-            videoModalState = { videoId, frameIdx, timestamp: Number(timestamp) || 0, fps: 25 };
-            const modal = document.getElementById('videoModal');
-            const player = document.getElementById('videoPlayer');
-            document.getElementById('videoModalTitle').textContent = `${videoId} · frame ${frameIdx}`;
-            document.getElementById('videoModalMeta').textContent = 'Loading video...';
-            player.src = `${API}/api/video/${encodeURIComponent(videoId)}`;
-            modal.classList.add('open');
+    /* ── Tab switching ──────────────────────────────────────── */
 
-            const seekToTarget = () => {
-                let t = videoModalState.timestamp;
-                if (!t && videoModalState.fps > 0) t = frameIdx / videoModalState.fps;
-                player.currentTime = Math.max(0, t);
-                document.getElementById('videoModalMeta').textContent =
-                    `Frame ${frameIdx} · ${player.currentTime.toFixed(2)}s`;
-            };
+    document.querySelectorAll('#tabBar button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#tabBar button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentMode = btn.dataset.mode;
+            document.querySelectorAll('.mode-controls').forEach(el => el.classList.remove('active'));
+            $(currentMode + 'Controls').classList.add('active');
+            clearResults();
+        });
+    });
 
-            player.onloadedmetadata = seekToTarget;
-            player.oncanplay = seekToTarget;
+    /* ── TKIS Search ────────────────────────────────────────── */
 
-            fetch(`${API}/api/video/${encodeURIComponent(videoId)}/info`)
-                .then(r => r.ok ? r.json() : null)
-                .then(info => {
-                    if (!info) return;
-                    videoModalState.fps = info.fps || 25;
-                    if (!videoModalState.timestamp && frameIdx >= 0) {
-                        videoModalState.timestamp = frameIdx / videoModalState.fps;
-                    }
-                    seekToTarget();
-                })
-                .catch(() => {});
-        }
+    $('tkisSearchMode').addEventListener('change', function () {
+        const isImage = this.value === 'image';
+        $('tkisTextBox').style.display = isImage ? 'none' : 'block';
+        $('tkisImageBox').style.display = isImage ? 'block' : 'none';
+    });
 
-        function closeVideoModal() {
-            const modal = document.getElementById('videoModal');
-            const player = document.getElementById('videoPlayer');
-            player.pause();
-            player.removeAttribute('src');
-            player.load();
-            modal.classList.remove('open');
-        }
+    $('tkisUploadZone').addEventListener('click', () => $('tkisImageInput').click());
+    $('tkisImageInput').addEventListener('change', function () {
+        const file = this.files && this.files[0];
+        const box = $('tkisImagePreview');
+        if (!file) { box.style.display = 'none'; return; }
+        $('tkisImageThumb').src = URL.createObjectURL(file);
+        box.style.display = 'block';
+    });
 
-        function seekVideoRelative(delta) {
-            const player = document.getElementById('videoPlayer');
-            player.currentTime = Math.max(0, player.currentTime + delta);
-        }
+    $('tkisQuery').addEventListener('input', function () {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            if (this.value.trim().length >= 3) doTkisSearch();
+        }, 800);
+    });
 
-        function replayAtFrame() {
-            let t = videoModalState.timestamp;
-            if (!t && videoModalState.fps > 0) t = videoModalState.frameIdx / videoModalState.fps;
-            const player = document.getElementById('videoPlayer');
-            player.currentTime = Math.max(0, t);
-            player.play().catch(() => {});
-        }
+    $('tkisQuery').addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doTkisSearch(); }
+    });
 
-        function switchAppMode(mode) {
-            const searchPanel = document.getElementById('searchResultsPanel');
-            const vqaPanel = document.getElementById('vqaPanel');
-            const searchControls = document.getElementById('searchControls');
-            const vqaControls = document.getElementById('vqaControls');
-            const isSearch = mode === 'search';
-            searchPanel.classList.toggle('active', isSearch);
-            vqaPanel.classList.toggle('active', !isSearch);
-            searchControls.classList.toggle('active', isSearch);
-            vqaControls.classList.toggle('active', !isSearch);
-            document.querySelector('.header h1').textContent = isSearch ? '🎬 Video Search' : '❓ VideoQA';
-        }
+    window.doTkisSearch = async function () {
+        const mode = $('tkisSearchMode').value;
+        const topK = parseInt($('tkisTopK').value) || 100;
+        setLoading('tkisSearchBtn', true);
+        const t0 = performance.now();
 
-        function buildCsvRow() {
-            const queryId = (document.getElementById('queryIdInput').value || 'Q_0001').trim();
-            if (!currentResults.length) {
-                toast('No result rows yet. Run a search first.', 'error');
-                return;
-            }
-
-            const cells = ['query_id'];
-            for (let i = 1; i <= 100; i++) {
-                const r = currentResults[i - 1];
-                cells.push(r ? `"${r.video_id},${r.frame_idx}"` : '');
-            }
-
-            const row = [queryId, ...cells.slice(1)];
-            const csv = row.map((v, idx) => idx === 0 ? v : v).join(',');
-            document.getElementById('csvPreview').value = csv;
-            toast('CSV row generated', 'ok');
-        }
-
-        async function copyCsvRow() {
-            const text = document.getElementById('csvPreview').value;
-            if (!text) {
-                toast('Generate a CSV row first', 'error');
-                return;
-            }
-
-            try {
-                await navigator.clipboard.writeText(text);
-                toast('CSV row copied to clipboard', 'ok');
-            } catch (err) {
-                toast('Clipboard not available', 'error');
-            }
-        }
-
-        async function checkStatus() {
-            try {
-                const r = await fetch(`${API}/api/status`);
+        try {
+            if (mode === 'image') {
+                const file = $('tkisImageInput').files && $('tkisImageInput').files[0];
+                if (!file) { toast('Select an image first', 'error'); return; }
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('top_k', String(topK));
+                fd.append('use_full_funnel', 'true');
+                fd.append('use_bm25', 'true');
+                fd.append('use_cross_encoder', 'true');
+                fd.append('expand_neighbors', 'false');
+                fd.append('dedup', 'true');
+                const r = await fetch(API + '/api/search-image', { method: 'POST', body: fd });
+                if (!r.ok) throw new Error((await r.json()).detail || 'Image search failed');
                 const d = await r.json();
-                document.getElementById('statusDot').className = 'status-dot';
-                const stored = d.milvus?.num_entities || 0;
-                document.getElementById('statusText').textContent =
-                    stored > 0 ? `Ready · ${stored} frames indexed` : 'Ready · no videos yet';
-            } catch(e) {
-                document.getElementById('statusDot').className = 'status-dot offline';
-                document.getElementById('statusText').textContent = 'Offline';
-            }
-        }
-
-        async function doSearch() {
-            const mode = document.getElementById('searchModeSelect').value;
-            const topK = parseInt(document.getElementById('topKSelect').value);
-            const btn = document.getElementById('searchBtn');
-            btn.disabled = true; btn.classList.add('loading');
-            const t0 = performance.now();
-
-            try {
-                if (mode === 'image') {
-                    const fileInput = document.getElementById('queryImageInput');
-                    if (!fileInput.files || !fileInput.files[0]) {
-                        toast('Please choose an image to search', 'error');
-                        return;
-                    }
-                    const formData = new FormData();
-                    formData.append('file', fileInput.files[0]);
-                    formData.append('top_k', String(topK));
-                    formData.append('use_full_funnel', 'true');
-                    formData.append('use_bm25', 'true');
-                    formData.append('use_cross_encoder', 'true');
-                    formData.append('expand_neighbors', 'false');
-                    formData.append('dedup', 'true');
-
-                    const r = await fetch(`${API}/api/search-image`, { method: 'POST', body: formData });
-                    if (!r.ok) throw new Error((await r.json()).detail || 'Image search failed');
-                    const d = await r.json();
-                    const ms = (performance.now() - t0).toFixed(0);
-                    currentResults = d.results || [];
-                    render(d); updateStats(d.total_results, ms);
-                    if (currentResults.length) buildCsvRow();
-                    return;
-                }
-
-                const q = document.getElementById('queryInput').value.trim();
-                if (!q) return toast('Please enter a description', 'error');
-
-                const r = await fetch(`${API}/api/search?expand_neighbors=false&dedup=true`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({query: q, top_k: topK, model: 'fusion', task_type: 'KIS'}),
-                });
-                if (!r.ok) throw new Error((await r.json()).detail || 'Search failed');
-                const d = await r.json();
-                const ms = (performance.now() - t0).toFixed(0);
                 currentResults = d.results || [];
-                render(d); updateStats(d.total_results, ms);
-                if (currentResults.length) buildCsvRow();
-            } catch(e) {
-                toast(e.message, 'error'); updateStats(0, 0);
-            } finally {
-                btn.disabled = false; btn.classList.remove('loading');
-            }
-        }
-
-        function render(data) {
-            const p = document.getElementById('searchResultsPanel');
-            if (!data.results?.length) {
-                p.innerHTML = `<div class="empty-state"><div class="icon">😕</div><p>Nothing found for "${data.query}"</p><p style="font-size:0.72rem;margin-top:4px;opacity:0.6">Try different words</p></div>`;
+                renderTkis(d);
+                updateCsvExport();
                 return;
             }
-            p.innerHTML = data.results.map((r, idx) => `
-                <div class="result-card" onclick="openVideoModal('${escapeJs(r.video_id)}', ${r.frame_idx}, ${r.timestamp})">
+
+            const q = $('tkisQuery').value.trim();
+            if (!q) return toast('Enter a description', 'error');
+            const r = await fetch(API + '/api/search?expand_neighbors=false&dedup=true', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: q, top_k: topK, model: 'fusion', task_type: 'KIS' }),
+            });
+            if (!r.ok) throw new Error((await r.json()).detail || 'Search failed');
+            const d = await r.json();
+            currentResults = d.results || [];
+            renderTkis(d);
+            updateCsvExport();
+        } catch (e) {
+            toast(e.message, 'error');
+        } finally {
+            setLoading('tkisSearchBtn', false);
+        }
+    };
+
+    function renderTkis(data) {
+        const p = $('resultsPanel');
+        if (!data.results || !data.results.length) {
+            p.innerHTML = '<div class="empty-state"><div class="icon">\u{1F615}</div><p>No results found</p></div>';
+            return;
+        }
+        p.innerHTML = data.results.map((r, i) => `
+            <div class="result-card" onclick="openVideoModal('${escapeJs(r.video_id)}',${r.frame_idx},${r.timestamp})">
+                <div class="frame-preview">
+                    <img src="/api/frame/${encodeURIComponent(r.video_id)}/${r.frame_idx}"
+                         onerror="this.style.display='none';this.parentElement.textContent='Frame #${r.frame_idx}'"
+                         alt="Frame ${r.frame_idx}" loading="lazy">
+                </div>
+                <div class="card-info">
+                    <div class="video-id">${escapeHtml(r.video_id)}</div>
+                    <div class="frame-meta">
+                        <span>Frame ${r.frame_idx}</span>
+                        <span>${r.timestamp.toFixed(1)}s</span>
+                    </div>
+                    <div class="scores">
+                        <span class="score-badge">${r.clip_score.toFixed(3)}</span>
+                        <span class="score-badge">${r.siglip2_score.toFixed(3)}</span>
+                        <span class="score-badge best">\u2B50 ${r.final_score.toFixed(3)}</span>
+                    </div>
+                </div>
+            </div>`).join('');
+    }
+
+    /* ── Q&A Search ─────────────────────────────────────────── */
+
+    $('qaQuestion').addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); doQaSearch(); }
+    });
+
+    window.doQaSearch = async function () {
+        const description = $('qaDescription').value.trim();
+        const question = $('qaQuestion').value.trim();
+        const topK = parseInt($('qaTopK').value) || 100;
+        if (!description) return toast('Enter a description', 'error');
+        if (!question) return toast('Enter a question', 'error');
+        setLoading('qaSearchBtn', true);
+
+        try {
+            const r = await fetch(API + '/api/qa/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ description, question, top_k: topK }),
+            });
+            if (!r.ok) throw new Error((await r.json()).detail || 'Q&A search failed');
+            const d = await r.json();
+            currentResults = d.results || [];
+            renderQa(d, question);
+            updateCsvExport();
+        } catch (e) {
+            toast(e.message, 'error');
+        } finally {
+            setLoading('qaSearchBtn', false);
+        }
+    };
+
+    function renderQa(data, question) {
+        const p = $('resultsPanel');
+        if (!data.results || !data.results.length) {
+            p.innerHTML = '<div class="empty-state"><div class="icon">\u{1F615}</div><p>No results found</p></div>';
+            return;
+        }
+        p.innerHTML = data.results.map((r, i) => `
+            <div class="result-card" onclick="openVideoModal('${escapeJs(r.video_id)}',${r.frame_idx},${r.timestamp || 0})">
+                <div class="frame-preview">
+                    <img src="/api/frame/${encodeURIComponent(r.video_id)}/${r.frame_idx}"
+                         onerror="this.style.display='none';this.parentElement.textContent='Frame #${r.frame_idx}'"
+                         alt="Frame ${r.frame_idx}" loading="lazy">
+                </div>
+                <div class="card-info">
+                    <div class="video-id">${escapeHtml(r.video_id)}</div>
+                    <div class="frame-meta">
+                        <span>Frame ${r.frame_idx}</span>
+                        <span>${(r.timestamp || 0).toFixed(1)}s</span>
+                    </div>
+                    <div class="scores">
+                        <span class="score-badge">${r.clip_score.toFixed(3)}</span>
+                        <span class="score-badge">${r.siglip2_score.toFixed(3)}</span>
+                        <span class="score-badge best">\u2B50 ${r.final_score.toFixed(3)}</span>
+                    </div>
+                    ${r.answer ? `<div class="answer-text"><span class="answer-label">Answer:</span> ${escapeHtml(r.answer)}</div>` : ''}
+                </div>
+            </div>`).join('');
+    }
+
+    /* ── TRAKE ──────────────────────────────────────────────── */
+
+    let trakeEventCount = 0;
+
+    window.addTrakeEvent = function () {
+        const list = $('trakeEventList');
+        const idx = trakeEventCount++;
+        const row = document.createElement('div');
+        row.className = 'event-row';
+        row.style.marginBottom = '6px';
+        row.innerHTML = `
+            <input type="text" id="trakeEvent_${idx}" placeholder="Event ${idx + 1} description..." style="flex:1">
+            <button class="btn-icon danger" onclick="this.parentElement.remove()" title="Remove">&times;</button>`;
+        list.appendChild(row);
+    };
+    addTrakeEvent();
+    addTrakeEvent();
+    addTrakeEvent();
+
+    window.doTrakeAlign = async function () {
+        const description = $('trakeDescription').value.trim();
+        const topK = parseInt($('trakeTopK').value) || 50;
+        if (!description) return toast('Enter a main description', 'error');
+
+        const events = [];
+        document.querySelectorAll('#trakeEventList .event-row input').forEach(inp => {
+            const v = inp.value.trim();
+            if (v) events.push(v);
+        });
+        if (!events.length) return toast('Add at least one event', 'error');
+        setLoading('trakeAlignBtn', true);
+
+        try {
+            const r = await fetch(API + '/api/trake', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ description, events, top_k: topK }),
+            });
+            if (!r.ok) throw new Error((await r.json()).detail || 'TRAKE failed');
+            const d = await r.json();
+            currentResults = d.results || [];
+            renderTrake(d, events);
+            updateCsvExport();
+        } catch (e) {
+            toast(e.message, 'error');
+        } finally {
+            setLoading('trakeAlignBtn', false);
+        }
+    };
+
+    function renderTrake(data, events) {
+        const p = $('resultsPanel');
+        if (!data.results || !data.results.length) {
+            p.innerHTML = '<div class="empty-state"><div class="icon">\u{1F615}</div><p>No results found</p></div>';
+            return;
+        }
+
+        if (data.event_mapping && Array.isArray(data.event_mapping)) {
+            let mappingHtml = '<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
+            data.event_mapping.forEach((m, i) => {
+                mappingHtml += `<div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:0.78rem;flex:1;min-width:200px">
+                    <div style="color:var(--accent);font-weight:600;margin-bottom:4px">Event ${i + 1}: ${escapeHtml(m.event || events[i] || '')}</div>
+                    <div style="color:var(--text-secondary)">Frame ${m.frame_idx ?? m.best_frame ?? '?'} \u00b7 ${m.video_id ?? ''}</div>
+                </div>`;
+            });
+            mappingHtml += '</div>';
+            p.innerHTML = mappingHtml + data.results.map((r, i) => `
+                <div class="result-card" onclick="openVideoModal('${escapeJs(r.video_id)}',${r.frame_idx},${r.timestamp || 0})">
                     <div class="frame-preview">
-                        <img src="/api/frame/${r.video_id}/${r.frame_idx}"
-                             onerror="this.style.display='none';this.parentElement.textContent='📹 Frame #${r.frame_idx}'"
+                        <img src="/api/frame/${encodeURIComponent(r.video_id)}/${r.frame_idx}"
+                             onerror="this.style.display='none';this.parentElement.textContent='Frame #${r.frame_idx}'"
                              alt="Frame ${r.frame_idx}" loading="lazy">
                     </div>
                     <div class="card-info">
-                        <div class="video-id">${r.video_id}</div>
+                        <div class="video-id">${escapeHtml(r.video_id)}</div>
                         <div class="frame-meta">
                             <span>Frame ${r.frame_idx}</span>
-                            <span>${r.timestamp.toFixed(1)}s</span>
-                            ${r.is_expanded_neighbor ? '<span class="score-badge" title="Neighbor expansion">±N</span>' : ''}
+                            <span>${(r.timestamp || 0).toFixed(1)}s</span>
                         </div>
                         <div class="scores">
-                            <span class="score-badge">${r.clip_score.toFixed(3)}</span>
-                            <span class="score-badge">${r.siglip2_score.toFixed(3)}</span>
-                            <span class="score-badge best">⭐ ${r.final_score.toFixed(3)}</span>
+                            <span class="score-badge best">\u2B50 ${r.final_score.toFixed(3)}</span>
+                        </div>
+                        ${r.event ? `<div class="answer-text"><span class="answer-label">Event:</span> ${escapeHtml(r.event)}</div>` : ''}
+                    </div>
+                </div>`).join('');
+        } else {
+            p.innerHTML = data.results.map((r, i) => `
+                <div class="result-card" onclick="openVideoModal('${escapeJs(r.video_id)}',${r.frame_idx},${r.timestamp || 0})">
+                    <div class="frame-preview">
+                        <img src="/api/frame/${encodeURIComponent(r.video_id)}/${r.frame_idx}"
+                             onerror="this.style.display='none';this.parentElement.textContent='Frame #${r.frame_idx}'"
+                             alt="Frame ${r.frame_idx}" loading="lazy">
+                    </div>
+                    <div class="card-info">
+                        <div class="video-id">${escapeHtml(r.video_id)}</div>
+                        <div class="frame-meta">
+                            <span>Frame ${r.frame_idx}</span>
+                            <span>${(r.timestamp || 0).toFixed(1)}s</span>
+                        </div>
+                        <div class="scores">
+                            <span class="score-badge best">\u2B50 ${r.final_score.toFixed(3)}</span>
                         </div>
                     </div>
                 </div>`).join('');
         }
+    }
 
-        function escapeJs(s) {
-            return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    /* ── Results helpers ─────────────────────────────────────── */
+
+    window.clearResults = function () {
+        currentResults = [];
+        csvRows = [];
+        $('resultsPanel').innerHTML =
+            '<div class="empty-state"><div class="icon">\u{1F50D}</div><p>Select a mode and search to begin</p></div>';
+        $('csvExportPanel').classList.remove('visible');
+        $('csvExportText').value = '';
+    };
+
+    /* ── CSV generation ─────────────────────────────────────── */
+
+    function buildTkisCsvRow(queryId, results) {
+        const cells = [queryId];
+        for (let i = 0; i < 100; i++) {
+            const r = results[i];
+            cells.push(r ? `"${r.video_id},${r.frame_idx}"` : '');
         }
+        return cells.join(',');
+    }
 
-        function updateStats(n, ms) {
-            document.getElementById('statsBar').style.display = 'flex';
-            document.getElementById('resultCount').textContent = n;
-            document.getElementById('latencyMs').textContent = ms + 'ms';
+    function buildQaCsvRow(results) {
+        return results.map(r => {
+            const ans = (r.answer || '').replace(/"/g, '""');
+            return `"${r.video_id},${r.frame_idx}","${ans}"`;
+        }).join('\n');
+    }
+
+    function buildTrakeCsvRow(results) {
+        return results.map(r => {
+            const evt = (r.event || '').replace(/"/g, '""');
+            return `"${r.event_idx ?? ''}","${r.video_id},${r.frame_idx}","${evt}"`;
+        }).join('\n');
+    }
+
+    function updateCsvExport() {
+        const panel = $('csvExportPanel');
+        const textarea = $('csvExportText');
+        if (!currentResults.length) {
+            panel.classList.remove('visible');
+            textarea.value = '';
+            return;
         }
-
-        function clearSearch() {
-            document.getElementById('queryInput').value = '';
-            document.getElementById('searchResultsPanel').innerHTML =
-                `<div class="empty-state"><div class="icon">🔍</div><p>Type what you're looking for and press Search</p></div>`;
-            document.getElementById('statsBar').style.display = 'none';
-            currentResults = [];
+        panel.classList.add('visible');
+        let csv = '';
+        if (currentMode === 'tkis') {
+            const qid = 'Q_0001';
+            csv = 'query_id,' + Array.from({ length: 100 }, (_, i) => 'answer_' + String(i + 1).padStart(3, '0')).join(',') + '\n';
+            csv += buildTkisCsvRow(qid, currentResults);
+        } else if (currentMode === 'qa') {
+            csv = 'video_frame,answer\n' + buildQaCsvRow(currentResults);
+        } else {
+            csv = 'event_idx,video_frame,event\n' + buildTrakeCsvRow(currentResults);
         }
+        textarea.value = csv;
+    }
 
-        function parseVqaCsv(csvText) {
-            const lines = csvText.trim().split(/\r?\n/);
-            if (lines.length < 2) return [];
-            const header = parseCsvLine(lines[0]).map(h => h.toLowerCase());
-            const idx = {
-                id: header.indexOf('id'),
-                video: header.indexOf('video'),
-                question: header.indexOf('question'),
-                answer: header.indexOf('answer'),
-            };
-            if (idx.id < 0 || idx.video < 0 || idx.question < 0) {
-                throw new Error('CSV must contain id, video, question columns');
-            }
-            const rows = [];
-            for (let i = 1; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (!line) continue;
-                const parts = parseCsvLine(line);
-                rows.push({
-                    id: parts[idx.id],
-                    video: parts[idx.video],
-                    question: parts[idx.question],
-                    answer: idx.answer >= 0 ? (parts[idx.answer] || '') : '',
-                    evidence_video_id: '',
-                    evidence_frame_idx: null,
-                    evidence_timestamp: null,
-                });
-            }
-            return rows;
-        }
+    window.buildTkisCsv = function () {
+        if (!currentResults.length) return toast('No results yet', 'error');
+        updateCsvExport();
+        toast('CSV row built', 'ok');
+    };
 
-        function renderVqaTable() {
-            const body = document.getElementById('vqaTableBody');
-            if (!vqaRows.length) {
-                body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);padding:32px">Upload test.csv to start VQA</td></tr>';
-                updateVqaStats();
-                return;
-            }
-            body.innerHTML = vqaRows.map((row, i) => `
-                <tr>
-                    <td>${row.id}</td>
-                    <td>${row.video}</td>
-                    <td>${row.question}</td>
-                    <td><input type="text" value="${escapeHtml(row.answer || '')}" data-vqa-idx="${i}" onchange="vqaRows[${i}].answer=this.value; updateVqaStats();" /></td>
-                    <td style="display:flex;gap:6px;flex-wrap:wrap">
-                        <button type="button" class="link-btn" onclick="watchVqaRowVideo(${i})">▶ Xem video</button>
-                        ${row.evidence_frame_idx != null
-                            ? `<button type="button" class="link-btn" onclick="openVideoModal('${escapeJs(row.evidence_video_id || row.video.replace(/\\.mp4$/i,''))}', ${row.evidence_frame_idx}, ${row.evidence_timestamp || 0})">Frame ${row.evidence_frame_idx}</button>`
-                            : `<button type="button" class="link-btn" onclick="vqaAnswerRow(${i})">Auto (heuristic)</button>`}
-                    </td>
-                </tr>`).join('');
-            updateVqaStats();
-        }
+    window.copyCsv = function () {
+        const text = $('csvExportText').value;
+        if (!text) return toast('No CSV to copy', 'error');
+        navigator.clipboard.writeText(text)
+            .then(() => toast('Copied to clipboard', 'ok'))
+            .catch(() => toast('Clipboard unavailable', 'error'));
+    };
 
-        function watchVqaRowVideo(index) {
-            // Manual VQA workflow: just open the raw video from the start
-            // (frame 0) so the person can scrub through and answer by hand,
-            // without needing the heuristic /api/vqa/answer call at all.
-            const row = vqaRows[index];
-            if (!row) return;
-            const videoId = (row.video || '').replace(/\.mp4$/i, '');
-            if (!videoId) { toast('Missing video for this row', 'error'); return; }
-            openVideoModal(videoId, 0, 0);
-            // Keep this row's index at hand so future "type answer" is easy
-            // to find again — focus the answer input once the modal is up.
-            setTimeout(() => {
-                const input = document.querySelector(`input[data-vqa-idx="${index}"]`);
-                if (input) input.focus();
-            }, 100);
-        }
+    window.downloadCsv = function () {
+        const text = $('csvExportText').value;
+        if (!text) return toast('No CSV to download', 'error');
+        const ext = currentMode === 'tkis' ? 'csv' : 'csv';
+        const blob = new Blob([text + '\n'], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `competition_${currentMode}.csv`;
+        a.click();
+        toast('CSV downloaded', 'ok');
+    };
 
-        function escapeHtml(s) {
-            return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        }
+    /* ── Video modal ────────────────────────────────────────── */
 
-        function updateVqaStats() {
-            document.getElementById('vqaRowCount').textContent = vqaRows.length;
-            document.getElementById('vqaAnsweredCount').textContent =
-                vqaRows.filter(r => (r.answer || '').trim()).length;
-        }
+    window.openVideoModal = function (videoId, frameIdx, timestamp) {
+        videoModalState = { videoId, frameIdx, timestamp: Number(timestamp) || 0, fps: 25 };
+        const modal = $('videoModal');
+        const player = $('videoPlayer');
+        $('videoModalTitle').textContent = videoId + ' \u00b7 frame ' + frameIdx;
+        $('videoModalMeta').textContent = 'Loading video...';
+        player.src = API + '/api/video/' + encodeURIComponent(videoId);
+        modal.classList.add('open');
 
-        async function vqaAnswerRow(index) {
-            const row = vqaRows[index];
-            const resp = await fetch(`${API}/api/vqa/answer`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: Number(row.id), video: row.video, question: row.question }),
-            });
-            const data = await resp.json();
-            if (!resp.ok) throw new Error(data.detail || 'VQA failed');
-            row.answer = data.answer || '';
-            row.evidence_video_id = data.evidence_video_id || '';
-            row.evidence_frame_idx = data.evidence_frame_idx;
-            row.evidence_timestamp = data.evidence_timestamp;
-            renderVqaTable();
-            return data;
-        }
+        const seekToTarget = function () {
+            let t = videoModalState.timestamp;
+            if (!t && videoModalState.fps > 0) t = frameIdx / videoModalState.fps;
+            player.currentTime = Math.max(0, t);
+            $('videoModalMeta').textContent = 'Frame ' + frameIdx + ' \u00b7 ' + player.currentTime.toFixed(2) + 's';
+        };
 
-        async function vqaAnswerCurrent() {
-            if (!vqaRows.length) return toast('Load test.csv first', 'error');
-            const idx = vqaRows.findIndex(r => !(r.answer || '').trim());
-            const target = idx >= 0 ? idx : 0;
-            try {
-                await vqaAnswerRow(target);
-                toast(`Answered row ${vqaRows[target].id}`, 'ok');
-            } catch (e) {
-                toast(e.message, 'error');
-            }
-        }
+        player.onloadedmetadata = seekToTarget;
+        player.oncanplay = seekToTarget;
 
-        async function vqaAnswerAll() {
-            if (vqaRunning || !vqaRows.length) return;
-            vqaRunning = true;
-            document.getElementById('vqaAnswerAllBtn').disabled = true;
-            let ok = 0, fail = 0;
-            try {
-                for (let i = 0; i < vqaRows.length; i++) {
-                    try {
-                        await vqaAnswerRow(i);
-                        ok++;
-                    } catch (_) { fail++; }
-                    await new Promise(r => setTimeout(r, 100));
+        fetch(API + '/api/video/' + encodeURIComponent(videoId) + '/info')
+            .then(r => r.ok ? r.json() : null)
+            .then(info => {
+                if (!info) return;
+                videoModalState.fps = info.fps || 25;
+                if (!videoModalState.timestamp && frameIdx >= 0) {
+                    videoModalState.timestamp = frameIdx / videoModalState.fps;
                 }
-                toast(`VQA done: ${ok} ok, ${fail} failed`, fail ? 'error' : 'ok');
-            } finally {
-                vqaRunning = false;
-                document.getElementById('vqaAnswerAllBtn').disabled = false;
-            }
-        }
+                seekToTarget();
+            })
+            .catch(() => {});
+    };
 
-        function exportVqaSubmission() {
-            if (!vqaRows.length) return toast('No VQA rows loaded', 'error');
-            const lines = ['id,answer'];
-            for (const row of vqaRows) {
-                const ans = (row.answer || '').replace(/"/g, '""');
-                lines.push(`${row.id},"${ans}"`);
-            }
-            const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'submission.csv';
-            link.click();
-            toast('Exported submission.csv', 'ok');
-        }
+    window.closeVideoModal = function () {
+        const player = $('videoPlayer');
+        player.pause();
+        player.removeAttribute('src');
+        player.load();
+        $('videoModal').classList.remove('open');
+    };
 
-        function toast(m, t) {
-            const el = document.createElement('div');
-            el.className = `toast ${t}`; el.textContent = m;
-            document.body.appendChild(el);
-            setTimeout(() => el.remove(), 3000);
-        }
+    window.seekVideoRelative = function (delta) {
+        $('videoPlayer').currentTime = Math.max(0, $('videoPlayer').currentTime + delta);
+    };
 
-        document.getElementById('appModeSelect').addEventListener('change', e => switchAppMode(e.target.value));
+    window.replayAtFrame = function () {
+        let t = videoModalState.timestamp;
+        if (!t && videoModalState.fps > 0) t = videoModalState.frameIdx / videoModalState.fps;
+        const player = $('videoPlayer');
+        player.currentTime = Math.max(0, t);
+        player.play().catch(() => {});
+    };
 
-        document.getElementById('vqaUploadZone').addEventListener('click', () => document.getElementById('vqaCsvInput').click());
-        document.getElementById('vqaCsvInput').addEventListener('change', e => {
-            const file = e.target.files && e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = evt => {
-                try {
-                    vqaRows = parseVqaCsv(evt.target.result);
-                    renderVqaTable();
-                    toast(`Loaded ${vqaRows.length} VQA rows`, 'ok');
-                } catch (err) {
-                    toast(err.message, 'error');
-                }
-            };
-            reader.readAsText(file);
-        });
+    /* ── Keyboard shortcuts ─────────────────────────────────── */
 
-        document.getElementById('searchModeSelect').addEventListener('change', (e) => {
-            const mode = e.target.value;
-            const textBox = document.getElementById('textSearchBox');
-            const imageBox = document.getElementById('imageSearchBox');
-            if (mode === 'image') {
-                textBox.style.display = 'none';
-                imageBox.style.display = 'block';
-            } else {
-                textBox.style.display = 'block';
-                imageBox.style.display = 'none';
-            }
-        });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeVideoModal();
+    });
 
-        document.getElementById('queryImageInput').addEventListener('change', (e) => {
-            const file = e.target.files && e.target.files[0];
-            const preview = document.getElementById('imagePreview');
-            const box = document.getElementById('imagePreviewBox');
-            if (!file) {
-                box.style.display = 'none';
-                return;
-            }
-            const url = URL.createObjectURL(file);
-            preview.src = url;
-            box.style.display = 'block';
-        });
+    /* ── Init ───────────────────────────────────────────────── */
 
-        document.getElementById('queryInput').addEventListener('keydown', e => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSearch(); }
-        });
+    checkStatus();
+    setInterval(checkStatus, 30000);
 
-        document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') closeVideoModal();
-        });
-
-        checkStatus(); setInterval(checkStatus, 30000);
-    </script>
+})();
+</script>
 </body>
 </html>
