@@ -31,6 +31,7 @@ from retrieval.query_parser import detect_mode, parse_trake, split_qa, TKIS, QA,
 from retrieval.answer_expander import expand_rows, format_csv_line, SubmissionRow
 from retrieval.frame_sampler import sample_video_windows
 from retrieval.trake_aligner import align_video_events, rank_videos
+import numpy as np
 
 
 def _read_query(path: Path) -> str:
@@ -215,7 +216,6 @@ def main():
     # --- Load models ---
     print("Loading models...", flush=True)
 
-    import numpy as np
     from embedding.hybrid_engine import HybridEmbeddingEngine
     from retrieval.persistent_store import PersistentVectorStore
     from retrieval.vqa_llm import answer_from_vlm

@@ -25,6 +25,7 @@ class PersistentVectorStore:
         self._embeddings_file = self.storage_dir / "embeddings.pkl"
         
         self._ids = []
+        self._ids_set = set()
         self._embeddings_clip = []
         self._embeddings_siglip2 = []
         self._metadata = {}  # {id: {video_id, frame_idx, timestamp}}
@@ -42,6 +43,7 @@ class PersistentVectorStore:
                 with open(self._metadata_file, 'rb') as f:
                     data = pickle.load(f)
                     self._ids = data.get('ids', [])
+                    self._ids_set = set(self._ids)
                     self._metadata = data.get('metadata', {})
                 
                 with open(self._embeddings_file, 'rb') as f:
@@ -100,11 +102,12 @@ class PersistentVectorStore:
             frame_id = f"{video_id}:{frame_idx}"
             
             # Skip if already exists
-            if frame_id in self._ids:
+            if frame_id in self._ids_set:
                 logger.warning(f"Frame {frame_id} already exists, skipping")
                 continue
             
             self._ids.append(frame_id)
+            self._ids_set.add(frame_id)
             self._metadata[frame_id] = {
                 "video_id": video_id,
                 "frame_idx": frame_idx,
@@ -252,6 +255,7 @@ class PersistentVectorStore:
     def clear(self):
         """Clear all data and delete files."""
         self._ids = []
+        self._ids_set = set()
         self._metadata = {}
         self._embeddings_clip = []
         self._embeddings_siglip2 = []
