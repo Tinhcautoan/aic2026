@@ -131,7 +131,13 @@ class VietnameseEnglishTranslator:
                     )
                     if self.device and str(self.device).startswith("cuda"):
                         encoded = {k: v.to(self.device) for k, v in encoded.items()}
-                    gen_kwargs = {"max_new_tokens": self.max_length}
+                    gen_kwargs = {
+                        "max_new_tokens": self.max_length,
+                        # Override the model's generation_config (mBART ships
+                        # max_length=1024) so transformers doesn't warn about
+                        # both max_new_tokens and max_length being set.
+                        "max_length": None,
+                    }
                     if self._forced_bos_token_id is not None:
                         gen_kwargs["forced_bos_token_id"] = self._forced_bos_token_id
                     if self.num_beams and self.num_beams > 1:
