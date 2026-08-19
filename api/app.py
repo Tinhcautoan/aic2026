@@ -190,8 +190,8 @@ def _warn_torchaudio_mismatch():
             if "CUDA" in str(e):
                 logger.warning(
                     "torchaudio is compiled for a different CUDA version than torch, "
-                    "which breaks transformers model loading. "
-                    "Fix: `pip uninstall -y torchaudio`"
+                    "which breaks transformers model loading. Fix: reinstall the matching set — "
+                    "`pip uninstall -y torch torchvision torchaudio && pip install -r requirements.txt`"
                 )
     except Exception:
         pass
