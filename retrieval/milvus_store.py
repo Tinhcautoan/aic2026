@@ -49,6 +49,11 @@ class MilvusVectorStore:
         else:
             self._create_collection()
 
+        # Create the vector indexes if missing — search fails with
+        # "No index found" otherwise. (Milvus Lite may ignore index_params
+        # passed to create_collection, so create indexes explicitly here.)
+        self._ensure_index()
+
         # MilvusClient does NOT auto-load a collection after create/reopen — a
         # fresh collection is in 'released' state and search would fail with
         # "call load() before search". Load it into memory here.
@@ -66,7 +71,7 @@ class MilvusVectorStore:
         return None
 
     def _create_collection(self):
-        """Create the collection schema + HNSW/COSINE indexes."""
+        """Create the collection schema (indexes are created by _ensure_index)."""
         schema = MilvusClient.create_schema(auto_id=True, enable_dynamic_field=False)
         schema.add_field("id", DataType.INT64, is_primary=True)
         schema.add_field("video_id", DataType.VARCHAR, max_length=256)
@@ -76,22 +81,47 @@ class MilvusVectorStore:
         schema.add_field("siglip2_embedding", DataType.FLOAT_VECTOR, dim=self.dim)
         schema.add_field("metadata", DataType.JSON)
 
-        index_params = self.client.prepare_index_params()
-        for field in ("clip_embedding", "siglip2_embedding"):
-            index_params.add_index(
-                field_name=field,
-                index_type=settings.MILVUS_INDEX_TYPE,
-                metric_type=settings.MILVUS_METRIC_TYPE,
-                params={
-                    "M": settings.MILVUS_M,
-                    "efConstruction": settings.MILVUS_EF_CONSTRUCTION,
-                },
-            )
-
-        self.client.create_collection(
-            self.collection_name, schema=schema, index_params=index_params,
-        )
+        self.client.create_collection(self.collection_name, schema=schema)
         logger.info(f"Created collection: {self.collection_name}")
+
+    def _ensure_index(self):
+        """Create vector indexes if missing (Milvus search requires an index).
+
+        Falls back to AUTOINDEX / FLAT if the configured index type (HNSW)
+        isn't available in this Milvus Lite build.
+        """
+        try:
+            existing = set(self.client.list_indexes(self.collection_name))
+        except Exception:
+            existing = set()
+
+        missing = [f for f in ("clip_embedding", "siglip2_embedding") if f not in existing]
+        if not missing:
+            return
+
+        candidates = [
+            (settings.MILVUS_INDEX_TYPE,
+             {"M": settings.MILVUS_M, "efConstruction": settings.MILVUS_EF_CONSTRUCTION}),
+            ("AUTOINDEX", {}),
+            ("FLAT", {}),
+        ]
+        for index_type, params in candidates:
+            index_params = self.client.prepare_index_params()
+            for field in missing:
+                index_params.add_index(
+                    field_name=field,
+                    index_type=index_type,
+                    metric_type=settings.MILVUS_METRIC_TYPE,
+                    params=params,
+                )
+            try:
+                self.client.create_index(self.collection_name, index_params=index_params)
+                logger.info(f"Created {index_type} indexes on {missing} for {self.collection_name}")
+                return
+            except Exception as e:
+                logger.warning(f"{index_type} index creation failed: {e}")
+
+        logger.error(f"Could not create any index on {self.collection_name}")
 
     def insert_frames(
         self,
