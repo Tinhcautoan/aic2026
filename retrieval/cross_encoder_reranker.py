@@ -38,7 +38,7 @@ from .bm25_search import build_frame_document_text
 
 class CrossEncoderReranker:
     """
-    Wraps a sentence-transformers CrossEncoder model.
+    Wraps a HuggingFace sequence-classification cross-encoder (BGE-Reranker).
 
     Default model: BAAI/bge-reranker-v2-m3
       - Multilingual (100+ languages incl. Vietnamese) — matches your
@@ -61,7 +61,7 @@ class CrossEncoderReranker:
         max_length: int = 512,
     ):
         import torch
-        from sentence_transformers import CrossEncoder
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
         self.model_name = model_name or settings.CROSS_ENCODER_MODEL_NAME
         self.device = device or (
@@ -70,6 +70,7 @@ class CrossEncoderReranker:
             else "cpu"
         )
         self.batch_size = batch_size
+        self.max_length = max_length
 
         # Validate CUDA works on this device
         if self.device.startswith("cuda"):
@@ -83,17 +84,45 @@ class CrossEncoderReranker:
                 self.device = "cpu"
 
         logger.info(f"Loading Cross-Encoder '{self.model_name}' on {self.device}...")
-        self.model = CrossEncoder(
-            self.model_name,
-            device=self.device,
-            max_length=max_length,
-        )
+        # Load the model directly via transformers (NOT sentence-transformers).
+        # sentence-transformers' CrossEncoder can fail with "Could not import
+        # module 'AutoProcessor'" on hosts that ship an older sentence-transformers
+        # (e.g. some vast.ai images). Loading the plain XLMRobertaForSequenceClassification
+        # ourselves and scoring logits directly gives the identical result without
+        # the version-sensitive dependency.
+        self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.model.to(self.device)
         if settings.USE_FP16 and "cuda" in self.device:
             try:
-                self.model.model.half()
+                self.model = self.model.half()
             except Exception as e:
                 logger.warning(f"Could not cast cross-encoder to fp16: {e}")
+        self.model.eval()
         logger.info("Cross-Encoder loaded")
+
+    def _predict(self, pairs: List[tuple]) -> np.ndarray:
+        """Score (query, document) pairs -> raw logits (1-D float32 array).
+
+        bge-reranker-v2-m3 is a single-label sequence classifier, so we return
+        ``logits[:, 0]``. Callers apply sigmoid to get probabilities.
+        """
+        import torch
+
+        scores: List[float] = []
+        with torch.no_grad():
+            for i in range(0, len(pairs), self.batch_size):
+                batch = pairs[i:i + self.batch_size]
+                features = self.tokenizer(
+                    batch,
+                    padding=True,
+                    truncation=True,
+                    max_length=self.max_length,
+                    return_tensors="pt",
+                ).to(self.device)
+                logits = self.model(**features).logits  # (batch, num_labels=1)
+                scores.extend(logits[:, 0].cpu().numpy().astype(np.float32).tolist())
+        return np.asarray(scores, dtype=np.float32)
 
     def _candidate_text(self, candidate: dict) -> str:
         """Text side of the (query, candidate) pair. Reuses the same builder
@@ -144,9 +173,7 @@ class CrossEncoderReranker:
 
         if texted:
             pairs = [(query, self._candidate_text(c)) for c in texted]
-            raw_scores = self.model.predict(
-                pairs, batch_size=self.batch_size, show_progress_bar=False,
-            )
+            raw_scores = self._predict(pairs)
             raw_scores = np.asarray(raw_scores, dtype=np.float32)
             probs = 1.0 / (1.0 + np.exp(-raw_scores))  # sigmoid, bge-reranker outputs logits
 
@@ -194,5 +221,5 @@ class CrossEncoderReranker:
     def score_pairs(self, pairs: List[tuple]) -> np.ndarray:
         """Low-level batch scoring for (query, text) tuples, if you need
         raw scores outside the candidate-dict rerank() flow."""
-        raw = self.model.predict(pairs, batch_size=self.batch_size, show_progress_bar=False)
+        raw = self._predict(pairs)
         return np.asarray(raw, dtype=np.float32)
