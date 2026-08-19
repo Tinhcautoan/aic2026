@@ -315,6 +315,38 @@ class MilvusVectorStore:
         logger.info(f"Migrated {total} frames from PersistentVectorStore")
         return total
 
+    def get_frame_embeddings(self, video_id: str, frame_indices: Optional[List[int]] = None) -> List[dict]:
+        """Return stored embeddings for specific frames of a video.
+
+        Used by TRAKE alignment to score candidate frames against event text.
+        Returns list of dicts with 'frame_idx', 'clip_emb', 'siglip2_emb'.
+        """
+        filter_expr = f'video_id == "{video_id}"'
+        if frame_indices is not None:
+            if not frame_indices:
+                return []
+            idxs = ", ".join(str(int(i)) for i in frame_indices)
+            filter_expr += f" and frame_idx in [{idxs}]"
+
+        try:
+            rows = self.client.query(
+                collection_name=self.collection_name,
+                filter=filter_expr,
+                output_fields=["frame_idx", "clip_embedding", "siglip2_embedding"],
+            )
+        except Exception as e:
+            logger.error(f"get_frame_embeddings query failed: {e}")
+            return []
+
+        results = []
+        for r in rows:
+            results.append({
+                "frame_idx": r.get("frame_idx", 0),
+                "clip_emb": np.asarray(r.get("clip_embedding", []), dtype=np.float32),
+                "siglip2_emb": np.asarray(r.get("siglip2_embedding", []), dtype=np.float32),
+            })
+        return results
+
     def get_collection_stats(self) -> dict:
         if self.client is None:
             return {"num_entities": 0}
