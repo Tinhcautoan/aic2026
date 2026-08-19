@@ -864,11 +864,17 @@
         player.src = API + '/api/video/' + encodeURIComponent(videoId);
         modal.classList.add('open');
 
+        let seekDone = false;
         const seekToTarget = function () {
+            if (seekDone) return;
+            seekDone = true;
+            player.onloadedmetadata = null;
+            player.oncanplay = null;
             let t = videoModalState.timestamp;
             if (!t && videoModalState.fps > 0) t = frameIdx / videoModalState.fps;
             player.currentTime = Math.max(0, t);
             $('videoModalMeta').textContent = 'Frame ' + frameIdx + ' \u00b7 ' + player.currentTime.toFixed(2) + 's';
+            player.play().catch(function () {});
         };
 
         player.onloadedmetadata = seekToTarget;

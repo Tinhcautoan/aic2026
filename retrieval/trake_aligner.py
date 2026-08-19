@@ -52,11 +52,14 @@ def align_video_events(
     """
     event_frames: List[TrakeEventFrame] = []
     event_scores: List[float] = []
+    used_frames: set = set()
 
     for event_text in event_texts:
         results = event_search_fn(event_text, candidate_frames)
+        results = [(fi, sc) for fi, sc in results if fi not in used_frames]
         if results:
             best_idx, best_score = results[0]
+            used_frames.add(best_idx)
             event_frames.append(TrakeEventFrame(event_text, best_idx, best_score))
             event_scores.append(best_score)
         else:

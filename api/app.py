@@ -911,17 +911,26 @@ def create_app() -> FastAPI:
         )
 
     def _make_event_search_fn_for_video(video_id: str):
-        """Create an event_search_fn scoped to a single video's frames."""
+        """Create an event_search_fn scoped to a single video's frames.
+
+        Uses ALL stored frame embeddings for the video (not the sampled
+        candidate indices, which may not exist in the store).
+        """
         import numpy as np
 
+        _cache: dict = {}
+
         def event_search_fn(event_text: str, candidates: list[dict]) -> list[tuple[int, float]]:
+            if "all_embs" not in _cache:
+                _cache["all_embs"] = milvus_store.get_frame_embeddings(
+                    video_id=video_id, frame_indices=None,
+                )
+
             embs = embedding_engine.encode_text(event_text)
             clip_emb = embs["clip"]
             siglip2_emb = embs["siglip2"]
 
-            frame_indices = [c["frame_idx"] for c in candidates]
-            frame_embs = milvus_store.get_frame_embeddings(video_id=video_id, frame_indices=frame_indices)
-
+            frame_embs = _cache["all_embs"]
             results = []
             for fe in frame_embs:
                 fi = fe["frame_idx"]
