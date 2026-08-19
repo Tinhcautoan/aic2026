@@ -19,7 +19,8 @@ websockets>=13.0
 redis>=5.0.0
 
 # Vector Database
-pymilvus[milvus-lite]>=2.4.2,<3.0  # Milvus Lite (file-based); extra only shipped on 2.4/2.5
+pymilvus==2.4.12  # Milvus Lite client — pinned to match milvus-lite
+milvus-lite==2.4.12  # embedded server; pymilvus 2.5+ calls AllocTimestamp (not in lite 2.4)
 
 # ML / Embedding (CUDA 12.6 builds)
 torch==2.13.0+cu126
