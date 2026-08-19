@@ -1004,8 +1004,10 @@ def create_app() -> FastAPI:
             if len(frames) == len(parsed.events):
                 out_results.append(TrakeResultItem(
                     video_id=a.video_id,
+                    frame_idx=frames[0] if frames else 0,
                     frames=frames,
                     score=a.total_score,
+                    timestamp=float(frames[0]) if frames else 0.0,
                     event_frames=[{"event": ef.event_text, "frame_idx": ef.frame_idx, "score": ef.score} for ef in a.event_frames],
                 ))
 

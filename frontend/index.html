@@ -171,6 +171,23 @@
             padding: 2px 7px; border-radius: 4px; font-size: 0.66rem; font-weight: 500;
         }
         .score-badge.best { background: rgba(0,214,143,0.15); color: var(--success); }
+
+        .event-timeline {
+            display: flex; gap: 4px; margin-top: 6px; overflow-x: auto;
+            padding: 4px 0;
+        }
+        .timeline-event {
+            flex-shrink: 0; width: 56px; text-align: center; cursor: pointer;
+            border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+            transition: border-color 0.15s;
+        }
+        .timeline-event:hover { border-color: var(--accent); }
+        .timeline-event img { width: 56px; height: 32px; object-fit: cover; display: block; }
+        .timeline-label {
+            font-size: 0.55rem; color: var(--text-secondary); display: block;
+            padding: 1px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .trake-card .card-info { padding-bottom: 6px; }
         .answer-text {
             margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border);
             font-size: 0.75rem; color: var(--text); line-height: 1.35;
@@ -724,8 +741,15 @@
                     </div>
                 </div>`).join('');
         } else {
-            p.innerHTML = data.results.map((r, i) => `
-                <div class="result-card" onclick="openVideoModal('${escapeJs(r.video_id)}',${r.frame_idx},${r.timestamp || 0})">
+            p.innerHTML = data.results.map((r, i) => {
+                const eventTimeline = (r.event_frames || []).map((ef, ei) =>
+                    `<div class="timeline-event" onclick="event.stopPropagation();openVideoModal('${escapeJs(r.video_id)}',${ef.frame_idx},0)" title="${escapeHtml(ef.event || 'Event ' + (ei+1))}">
+                        <img src="/api/frame/${encodeURIComponent(r.video_id)}/${ef.frame_idx}" alt="E${ei+1}" loading="lazy" onerror="this.style.display='none'">
+                        <span class="timeline-label">E${ei+1}: F${ef.frame_idx}</span>
+                    </div>`
+                ).join('');
+                return `
+                <div class="result-card trake-card" onclick="openVideoModal('${escapeJs(r.video_id)}',${r.frame_idx},${r.timestamp || 0})">
                     <div class="frame-preview">
                         <img src="/api/frame/${encodeURIComponent(r.video_id)}/${r.frame_idx}"
                              onerror="this.style.display='none';this.parentElement.textContent='Frame #${r.frame_idx}'"
@@ -736,12 +760,12 @@
                         <div class="frame-meta">
                             <span>Frame ${r.frame_idx}</span>
                             <span>${(r.timestamp || 0).toFixed(1)}s</span>
-                        </div>
-                        <div class="scores">
                             <span class="score-badge best">\u2B50 ${(r.score || 0).toFixed(3)}</span>
                         </div>
+                        ${eventTimeline ? `<div class="event-timeline">${eventTimeline}</div>` : ''}
                     </div>
-                </div>`).join('');
+                </div>`;
+            }).join('');
         }
     }
 

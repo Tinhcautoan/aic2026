@@ -110,8 +110,10 @@ class TrakeRequest(BaseModel):
 
 class TrakeResultItem(BaseModel):
     video_id: str = ""
+    frame_idx: int = 0
     frames: List[int] = Field(default_factory=list)
     score: float = 0.0
+    timestamp: float = 0.0
     event_frames: List[dict] = Field(default_factory=list)
 
 
