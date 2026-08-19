@@ -67,6 +67,7 @@ class HybridEmbeddingEngine:
                 from .query_translator import VietnameseEnglishTranslator
                 self._translator = VietnameseEnglishTranslator(
                     model_name=settings.VI_EN_TRANSLATION_MODEL,
+                    model_dir=settings.VI_EN_TRANSLATION_MODEL_DIR,
                     device=settings.VI_EN_TRANSLATION_DEVICE,
                     num_beams=settings.VI_EN_TRANSLATION_NUM_BEAMS,
                 )

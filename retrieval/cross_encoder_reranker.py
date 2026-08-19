@@ -64,6 +64,7 @@ class CrossEncoderReranker:
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
         self.model_name = model_name or settings.CROSS_ENCODER_MODEL_NAME
+        self.model_dir = settings.CROSS_ENCODER_MODEL_DIR
         self.device = device or (
             f"cuda:{settings.GPU_DEVICE_ID}"
             if settings.GPU_ENABLED and torch.cuda.is_available()
@@ -90,8 +91,9 @@ class CrossEncoderReranker:
         # (e.g. some vast.ai images). Loading the plain XLMRobertaForSequenceClassification
         # ourselves and scoring logits directly gives the identical result without
         # the version-sensitive dependency.
-        self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        model_path = self.model_dir or self.model_name
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
         self.model.to(self.device)
         if settings.USE_FP16 and "cuda" in self.device:
             try:

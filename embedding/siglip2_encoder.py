@@ -52,9 +52,10 @@ class SigLIP2Encoder:
         logger.info(f"Initializing SigLIP2 encoder on {self.device}")
 
         # SigLIP2 uses ViT-SO400M-14 backbone with siglip pretraining
+        pretrained = settings.OPENCLIP_MODEL_DIR or settings.SIGLIP2_PRETRAINED
         self.model, _, self.preprocess = open_clip.create_model_and_transforms(
             model_name=settings.SIGLIP2_MODEL_NAME,
-            pretrained=settings.SIGLIP2_PRETRAINED,
+            pretrained=pretrained,
             device=self.device,
         )
 

@@ -113,9 +113,10 @@ class TULIPEncoder:
         # Load TULIP fork in isolation (only when first needed)
         tulip = _get_tulip()
 
+        pretrained = settings.OPENCLIP_MODEL_DIR or settings.TULIP_PRETRAINED
         self.model, _, self.preprocess = tulip.factory.create_model_and_transforms(
             model_name=settings.TULIP_MODEL_NAME,
-            pretrained=settings.TULIP_PRETRAINED,
+            pretrained=pretrained,
             device=self.device,
         )
 

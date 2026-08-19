@@ -54,11 +54,13 @@ class VietnameseEnglishTranslator:
     def __init__(
         self,
         model_name: str = "vinai/vinai-translate-vi2en-v2",
+        model_dir: str = "",
         device: Optional[str] = "cpu",
         max_length: int = 128,
         num_beams: int = 4,
     ):
         self.model_name = model_name
+        self.model_dir = model_dir
         self.device = device
         self.max_length = max_length
         self.num_beams = num_beams
@@ -82,8 +84,9 @@ class VietnameseEnglishTranslator:
                 logger.info(f"Loading vi->en translation model {self.model_name} ...")
                 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-                self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-                self._model = AutoModelForSeq2SeqLM.from_pretrained(self.model_name)
+                model_path = self.model_dir or self.model_name
+                self._tokenizer = AutoTokenizer.from_pretrained(model_path)
+                self._model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
                 if self.device and str(self.device).startswith("cuda"):
                     self._model = self._model.to(self.device).half()
                 self._model.eval()

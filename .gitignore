@@ -6,6 +6,7 @@ data/cache/
 
 # Model checkpoints
 checkpoints/
+models/
 
 # Python
 __pycache__/

@@ -33,9 +33,10 @@ class CLIPEncoder:
 
         logger.info(f"Initializing CLIP encoder on {self.device}")
 
+        pretrained = settings.OPENCLIP_MODEL_DIR or settings.CLIP_PRETRAINED
         self.model, _, self.preprocess = open_clip.create_model_and_transforms(
             model_name=settings.CLIP_MODEL_NAME,
-            pretrained=settings.CLIP_PRETRAINED,
+            pretrained=pretrained,
             device=self.device,
         )
 

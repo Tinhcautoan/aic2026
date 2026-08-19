@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     VIDEO_DIR: Path = DATA_DIR / "videos"
     KEYFRAME_DIR: Path = DATA_DIR / "keyframes"
     CACHE_DIR: Path = DATA_DIR / "cache"
+    MODELS_DIR: Path = PROJECT_ROOT / "models"
 
     # Milvus Configuration
     MILVUS_HOST: str = "localhost"
@@ -47,6 +48,7 @@ class Settings(BaseSettings):
     EMBEDDING_DIM_SIGLIP2: int = 1152
     UNIFIED_DIM: int = 768
     USE_FP16: bool = True
+    OPENCLIP_MODEL_DIR: str = ""  # "" → auto-use HF cache; set to local path for offline
 
     # Vietnamese -> English translation (improves retrieval for Vietnamese
     # queries on the English-only TULIP/SigLIP2 text encoders; English queries
@@ -55,6 +57,7 @@ class Settings(BaseSettings):
     VI_EN_TRANSLATION_MODEL: str = "vinai/vinai-translate-vi2en-v2"
     VI_EN_TRANSLATION_DEVICE: str = "cpu"  # keep translation off the small 4GB GPU
     VI_EN_TRANSLATION_NUM_BEAMS: int = 4  # beam search improves translation quality
+    VI_EN_TRANSLATION_MODEL_DIR: str = ""  # "" → auto-use HF hub; set to local path for offline
 
     # Keyframe Extraction
     KEYFRAME_THRESHOLD: float = 0.6
@@ -73,6 +76,7 @@ class Settings(BaseSettings):
     # Cross-Encoder Re-ranker Configuration
     CROSS_ENCODER_ENABLED: bool = True
     CROSS_ENCODER_MODEL_NAME: str = "BAAI/bge-reranker-v2-m3"  # multilingual, handles Vietnamese
+    CROSS_ENCODER_MODEL_DIR: str = ""  # "" → auto-use HF hub; set to local path for offline
 
     # Retrieval Funnel Top-K (Dense -> BM25 -> RRF Fusion -> Cross-Encoder -> Expansion)
     DENSE_TOP_K: int = 200
