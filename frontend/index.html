@@ -718,7 +718,7 @@
                             <span>${(r.timestamp || 0).toFixed(1)}s</span>
                         </div>
                         <div class="scores">
-                            <span class="score-badge best">\u2B50 ${r.final_score.toFixed(3)}</span>
+                            <span class="score-badge best">\u2B50 ${(r.score || 0).toFixed(3)}</span>
                         </div>
                         ${r.event ? `<div class="answer-text"><span class="answer-label">Event:</span> ${escapeHtml(r.event)}</div>` : ''}
                     </div>
@@ -738,7 +738,7 @@
                             <span>${(r.timestamp || 0).toFixed(1)}s</span>
                         </div>
                         <div class="scores">
-                            <span class="score-badge best">\u2B50 ${r.final_score.toFixed(3)}</span>
+                            <span class="score-badge best">\u2B50 ${(r.score || 0).toFixed(3)}</span>
                         </div>
                     </div>
                 </div>`).join('');

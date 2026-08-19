@@ -984,7 +984,7 @@ def create_app() -> FastAPI:
                     delta_ratio=settings.DELTA_RATIO,
                     frame_step=settings.FRAME_STEP,
                 )
-                candidate_dicts = [{"frame_idx": sf.frame_idx, "score": sf.score} for sf in sampled]
+                candidate_dicts = [{"video_id": vid, "frame_idx": sf.frame_idx, "score": sf.score} for sf in sampled]
                 event_search_fn = _make_event_search_fn_for_video(vid)
                 alignment = align_video_events(
                     video_id=vid,
