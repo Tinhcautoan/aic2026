@@ -185,21 +185,36 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize embedding engine: {e}")
         embedding_engine = None
     reranker = HybridReranker() if HybridReranker else None
-    # Try Milvus, fallback to persistent file-based store
+    # Milvus Lite (file-based). No Docker, no port, no fallback store.
     if MilvusVectorStore:
         try:
             milvus_store = MilvusVectorStore()
-            logger.info("Milvus connected")
+            logger.info(f"Milvus Lite ready: {settings.MILVUS_DB_PATH}")
         except Exception as e:
-            logger.warning(f"Milvus unavailable, using PersistentVectorStore instead")
-            milvus_store = PersistentVectorStore() if PersistentVectorStore else None
-            if milvus_store: logger.info("PersistentVectorStore initialized (disk-backed, survives restarts)")
+            logger.opt(exception=True).error(
+                f"Milvus Lite init failed: {e}. "
+                f"Check read/write permissions for {settings.MILVUS_DB_PATH}"
+            )
+            milvus_store = None
     if RedisCacheManager:
         redis_cache = RedisCacheManager()
         try: await redis_cache.connect()
         except Exception: redis_cache = None
     if PreprocessingPipeline:
         preprocessing_pipeline = PreprocessingPipeline(embedding_engine=embedding_engine, milvus_store=milvus_store)
+
+    # ---- Ingest existing local data (persistent_store / keyframes / videos) ----
+    if milvus_store is not None and settings.AUTO_INGEST_LOCAL_DATA:
+        from retrieval.local_ingest import ingest_local_data_if_empty
+        try:
+            summary = ingest_local_data_if_empty(
+                milvus_store,
+                embedding_engine=embedding_engine,
+                pipeline=preprocessing_pipeline,
+            )
+            logger.info(f"Local data ingest: {summary}")
+        except Exception as e:
+            logger.warning(f"Local data ingest failed: {e}")
 
     # ---- BM25 sparse index: try to restore from disk, else start empty ----
     if BM25Index:

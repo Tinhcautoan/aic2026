@@ -27,7 +27,7 @@ class TestConfig(unittest.TestCase):
 
     def test_settings_types(self):
         from config import settings
-        self.assertIsInstance(settings.MILVUS_PORT, int)
+        self.assertIsInstance(settings.MILVUS_M, int)
         self.assertIsInstance(settings.FUSION_ALPHA, float)
         self.assertIsInstance(settings.OCR_ENABLED, bool)
         self.assertIsInstance(settings.ALLOWED_ORIGINS, list)

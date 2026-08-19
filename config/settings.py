@@ -16,9 +16,8 @@ class Settings(BaseSettings):
     CACHE_DIR: Path = DATA_DIR / "cache"
     MODELS_DIR: Path = PROJECT_ROOT / "models"
 
-    # Milvus Configuration
-    MILVUS_HOST: str = "localhost"
-    MILVUS_PORT: int = 19530
+    # Milvus Configuration (Milvus Lite — file-based, no Docker / no port 19530)
+    MILVUS_DB_PATH: Path = PROJECT_ROOT / "milvus.db"  # local file URI for MilvusClient
     MILVUS_COLLECTION_NAME: str = "video_frames"
     MILVUS_INDEX_TYPE: str = "HNSW"
     MILVUS_METRIC_TYPE: str = "COSINE"
@@ -130,6 +129,9 @@ class Settings(BaseSettings):
     DELTA_RATIO: float = 0.05           # window = keyframe ± 5% of frame_count
     FRAME_STEP: int = 5                 # sample every N frames within delta window
     MAX_ROWS: int = 100                 # max CSV rows per query
+    # Auto-ingest existing local data (persistent_store / keyframes / videos)
+    # into Milvus Lite on startup when the collection is empty.
+    AUTO_INGEST_LOCAL_DATA: bool = True
 
     # GPU Configuration
     GPU_ENABLED: bool = True
