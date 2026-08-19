@@ -2,7 +2,7 @@
 # GPU (CUDA 12.6) builds
 # Install PyTorch from the official CUDA index so torch/torchvision
 # ship with CUDA support (matches the cu126 index used in the README).
-# NOTE: transformers, open_clip_torch, sentence-transformers and easyocr
+# NOTE: transformers, open_clip_torch and easyocr
 # have no separate "GPU" package on PyPI -- they use CUDA automatically
 # once a CUDA-enabled torch is installed.
 --extra-index-url https://download.pytorch.org/whl/cu126
@@ -24,7 +24,7 @@ pymilvus>=2.4.0
 # ML / Embedding (CUDA 12.6 builds)
 torch==2.13.0+cu126
 torchvision==0.28.0+cu126
-transformers>=4.44.0
+transformers>=5.15.0,<6.0  # pinned to the version verified working (avoid a stale 4.x pre-installed in cloud images)
 open_clip_torch>=2.26.0
 Pillow>=10.4.0
 einops>=0.6.0
@@ -34,7 +34,6 @@ sacremoses>=0.1.1
 
 # Sparse Search & Cross-Encoder Re-ranking
 rank-bm25>=0.2.2
-sentence-transformers>=3.0.0
 underthesea>=6.8.0  # optional: Vietnamese word segmentation for BM25 (settings.BM25_USE_VN_SEGMENTATION)
 
 # Video Processing

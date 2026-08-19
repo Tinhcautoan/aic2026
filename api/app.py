@@ -218,7 +218,9 @@ async def lifespan(app: FastAPI):
             cross_encoder = CrossEncoderReranker()
             logger.info(f"Cross-Encoder loaded: {settings.CROSS_ENCODER_MODEL_NAME}")
         except Exception as e:
-            logger.warning(f"Cross-Encoder unavailable, Stage 4 will be skipped: {e}")
+            logger.opt(exception=True).warning(
+                f"Cross-Encoder unavailable, Stage 4 will be skipped: {e}"
+            )
             cross_encoder = None
 
     # ---- Full funnel orchestrator ----

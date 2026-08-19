@@ -95,7 +95,11 @@ class VietnameseEnglishTranslator:
                 return True
             except Exception as e:
                 self._failed = True
-                logger.warning(
+                # Log the full traceback (loguru opt(exception=True)) so the
+                # *underlying* import failure is visible. transformers v5 wraps
+                # real import errors as "Could not import module 'X'" and hides
+                # the root cause otherwise.
+                logger.opt(exception=True).warning(
                     f"vi->en translation model failed to load ({e}); "
                     f"falling back to original text"
                 )
