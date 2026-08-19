@@ -25,6 +25,10 @@ milvus-lite==2.4.12  # embedded server; pymilvus 2.5+ calls AllocTimestamp (not 
 # ML / Embedding (CUDA 12.6 builds)
 torch==2.13.0+cu126
 torchvision==0.28.0+cu126
+# NOTE: torchaudio is intentionally NOT installed here. Cloud GPU images often
+# ship a torchaudio built for a different CUDA (e.g. 12.8 vs this 12.6) which
+# breaks transformers model loading. If it's present, remove it:
+#     pip uninstall -y torchaudio
 transformers>=5.15.0,<6.0  # pinned to the version verified working (avoid a stale 4.x pre-installed in cloud images)
 open_clip_torch>=2.26.0
 Pillow>=10.4.0

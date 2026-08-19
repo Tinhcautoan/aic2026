@@ -172,11 +172,37 @@ def resolve_query_image_path(image_path: str) -> str:
 
 
 @asynccontextmanager
+def _warn_torchaudio_mismatch():
+    """Log a clear action message if torchaudio's CUDA build conflicts with torch.
+
+    transformers v5 imports torchaudio even for text models (processing_utils ->
+    audio_utils), and a mismatched torchaudio raises a RuntimeError at import
+    time that surfaces as a confusing "Could not import module 'X'".
+    """
+    try:
+        import importlib.util
+        import torch
+        if not torch.cuda.is_available() or importlib.util.find_spec("torchaudio") is None:
+            return
+        try:
+            import torchaudio  # raises RuntimeError on CUDA mismatch
+        except RuntimeError as e:
+            if "CUDA" in str(e):
+                logger.warning(
+                    "torchaudio is compiled for a different CUDA version than torch, "
+                    "which breaks transformers model loading. "
+                    "Fix: `pip uninstall -y torchaudio`"
+                )
+    except Exception:
+        pass
+
+
 async def lifespan(app: FastAPI):
     global embedding_engine, reranker, milvus_store, redis_cache, preprocessing_pipeline, startup_time
     global bm25_index, cross_encoder, hybrid_pipeline
     startup_time = time.time()
     logger.info("Starting Video Retrieval System...")
+    _warn_torchaudio_mismatch()
     try:
         _lazy_import()
         embedding_engine = HybridEmbeddingEngine()
