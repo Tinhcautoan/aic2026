@@ -284,7 +284,7 @@ def build_vlm_payload(
     return {
         "model": "",  # filled by caller
         "messages": [{"role": "user", "content": content}],
-        "max_tokens": 200,
+        "max_tokens": 150,
     }
 
 
@@ -348,7 +348,7 @@ def _parse_vlm_answer(raw: str, mode: str | None = None) -> Optional[Dict[str, A
 async def answer_from_vlm(
     question: str,
     frames: List[Dict[str, Any]],
-    model: str = "qwen2.5-vl-32b",
+    model: str = "Qwen/Qwen2.5-VL-32B-Instruct-AWQ",
     vlm_url: str = "http://localhost:8080",
     timeout: float = 120.0,
     instruction: str | None = None,

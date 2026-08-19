@@ -119,9 +119,9 @@ class Settings(BaseSettings):
     # Self-hosted VLM Configuration (vLLM OpenAI-compatible)
     VLM_ENABLED: bool = False           # set True to use self-hosted VLM for Q&A
     VLM_URL: str = "http://localhost:8080"  # vLLM server base URL
-    VLM_MODEL: str = "qwen2.5-vl-32b"  # model name passed to vLLM
+    VLM_MODEL: str = "Qwen/Qwen2.5-VL-32B-Instruct-AWQ"  # 4-bit AWQ: ~34GB vs ~82GB FP16
     VLM_TIMEOUT_SEC: float = 120.0      # per-request timeout
-    VLM_MAX_FRAMES: int = 30            # max frames sent to VLM per request
+    VLM_MAX_FRAMES: int = 10            # max frames sent to VLM per request (was 30 → OOM)
 
     # Contest Pipeline Settings
     TOPK_VIDEOS: int = 20               # candidates for Q&A (top-K videos to expand)
