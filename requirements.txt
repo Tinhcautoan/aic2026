@@ -19,7 +19,7 @@ websockets>=13.0
 redis>=5.0.0
 
 # Vector Database
-pymilvus>=2.4.0
+pymilvus>=2.4.0,<3.1  # cap below 3.1: connections.connect (ORM API) is removed in 3.1+
 
 # ML / Embedding (CUDA 12.6 builds)
 torch==2.13.0+cu126

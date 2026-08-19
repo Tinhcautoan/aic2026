@@ -36,18 +36,31 @@ class MilvusVectorStore:
         self._connect()
         self._init_collection()
 
-    def _connect(self):
-        """Establish connection to Milvus server."""
-        try:
-            connections.connect(
-                alias="default",
-                host=self.host,
-                port=self.port,
-            )
-            logger.info(f"Connected to Milvus at {self.host}:{self.port}")
-        except MilvusException as e:
-            logger.error(f"Failed to connect to Milvus: {e}")
-            raise
+    def _connect(self, max_retries: int = 10, retry_delay: float = 5.0):
+        """Establish connection to Milvus server, retrying while it starts up.
+
+        Milvus Standalone's healthcheck has a 90s ``start_period``, so we retry
+        for a while instead of failing immediately on a cold start.
+        """
+        last_exc: Optional[Exception] = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                connections.connect(
+                    alias="default",
+                    host=self.host,
+                    port=self.port,
+                )
+                logger.info(f"Connected to Milvus at {self.host}:{self.port}")
+                return
+            except MilvusException as e:
+                last_exc = e
+                logger.warning(
+                    f"Milvus connection attempt {attempt}/{max_retries} failed: {e}"
+                )
+                if attempt < max_retries:
+                    time.sleep(retry_delay)
+        logger.error(f"Failed to connect to Milvus after {max_retries} attempts: {last_exc}")
+        raise last_exc
 
     def _init_collection(self):
         """Initialize or load the Milvus collection with HNSW index."""
