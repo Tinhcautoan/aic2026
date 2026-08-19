@@ -49,6 +49,11 @@ class MilvusVectorStore:
         else:
             self._create_collection()
 
+        # MilvusClient does NOT auto-load a collection after create/reopen — a
+        # fresh collection is in 'released' state and search would fail with
+        # "call load() before search". Load it into memory here.
+        self.client.load_collection(self.collection_name)
+
     def _get_existing_dim(self) -> Optional[int]:
         try:
             desc = self.client.describe_collection(self.collection_name)
@@ -127,6 +132,7 @@ class MilvusVectorStore:
 
         try:
             res = self.client.insert(self.collection_name, data=data)
+            self.client.flush(self.collection_name)  # seal segments so search sees the new rows
             ids = res.get("ids", []) if isinstance(res, dict) else []
             logger.info(f"Inserted {n} frames for video '{video_id}'")
             return list(ids)
