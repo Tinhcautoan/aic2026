@@ -951,7 +951,7 @@ def create_app() -> FastAPI:
                 video_id=vid,
                 frame_idx=kf_idx,
                 answer=answer,
-                score=score,
+                final_score=score,
                 timestamp=r.get("timestamp", 0.0),
                 clip_score=r.get("clip_score", 0.0),
                 siglip2_score=r.get("siglip2_score", 0.0),

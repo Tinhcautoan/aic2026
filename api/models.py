@@ -88,7 +88,7 @@ class QaSearchResultItem(BaseModel):
     video_id: str = ""
     frame_idx: int = 0
     answer: str = ""
-    score: float = 0.0
+    final_score: float = 0.0
     timestamp: float = 0.0
     clip_score: float = 0.0
     siglip2_score: float = 0.0
