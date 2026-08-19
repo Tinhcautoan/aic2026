@@ -52,8 +52,9 @@ class Settings(BaseSettings):
     # queries on the English-only TULIP/SigLIP2 text encoders; English queries
     # are passed through unchanged).
     VI_EN_TRANSLATION_ENABLED: bool = True
-    VI_EN_TRANSLATION_MODEL: str = "Helsinki-NLP/opus-mt-vi-en"
+    VI_EN_TRANSLATION_MODEL: str = "vinai/vinai-translate-vi2en-v2"
     VI_EN_TRANSLATION_DEVICE: str = "cpu"  # keep translation off the small 4GB GPU
+    VI_EN_TRANSLATION_NUM_BEAMS: int = 4  # beam search improves translation quality
 
     # Keyframe Extraction
     KEYFRAME_THRESHOLD: float = 0.6

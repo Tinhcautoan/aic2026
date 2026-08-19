@@ -49,19 +49,22 @@ def is_vietnamese(text: str) -> bool:
 
 
 class VietnameseEnglishTranslator:
-    """Lazy-loaded MarianMT vi->en translator."""
+    """Lazy-loaded vi->en translator (defaults to VinAI mBART)."""
 
     def __init__(
         self,
-        model_name: str = "Helsinki-NLP/opus-mt-vi-en",
+        model_name: str = "vinai/vinai-translate-vi2en-v2",
         device: Optional[str] = "cpu",
         max_length: int = 128,
+        num_beams: int = 4,
     ):
         self.model_name = model_name
         self.device = device
         self.max_length = max_length
+        self.num_beams = num_beams
         self._tokenizer = None
         self._model = None
+        self._forced_bos_token_id = None
         self._failed = False
         self._lock = threading.Lock()
 
@@ -77,13 +80,17 @@ class VietnameseEnglishTranslator:
                 return False
             try:
                 logger.info(f"Loading vi->en translation model {self.model_name} ...")
-                from transformers import MarianMTModel, MarianTokenizer
+                from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-                self._tokenizer = MarianTokenizer.from_pretrained(self.model_name)
-                self._model = MarianMTModel.from_pretrained(self.model_name)
+                self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+                self._model = AutoModelForSeq2SeqLM.from_pretrained(self.model_name)
                 if self.device and str(self.device).startswith("cuda"):
-                    self._model = self._model.to(self.device)
+                    self._model = self._model.to(self.device).half()
                 self._model.eval()
+
+                # Force the decoder to emit English regardless of input language.
+                self._forced_bos_token_id = self._detect_forced_bos()
+
                 logger.info("vi->en translation model loaded")
                 return True
             except Exception as e:
@@ -93,6 +100,22 @@ class VietnameseEnglishTranslator:
                     f"falling back to original text"
                 )
                 return False
+
+    def _detect_forced_bos(self):
+        """Resolve the English target-language BOS token id for the active model."""
+        tok = self._tokenizer
+        # mBART (VinAI): lang_code_to_id maps "en_XX" -> id
+        lang_map = getattr(tok, "lang_code_to_id", None)
+        if lang_map and "en_XX" in lang_map:
+            return lang_map["en_XX"]
+        # NLLB / M2M100 (facebook/nllb-*): "eng_Latn"
+        model_type = getattr(getattr(self._model, "config", None), "model_type", None)
+        if model_type in ("m2m_100", "nllb"):
+            try:
+                return tok.convert_tokens_to_ids("eng_Latn")
+            except Exception:
+                return None
+        return None
 
     def translate(self, text: str) -> str:
         if not self._load():
@@ -108,9 +131,12 @@ class VietnameseEnglishTranslator:
                     )
                     if self.device and str(self.device).startswith("cuda"):
                         encoded = {k: v.to(self.device) for k, v in encoded.items()}
-                    generated = self._model.generate(
-                        **encoded, max_new_tokens=self.max_length,
-                    )
+                    gen_kwargs = {"max_new_tokens": self.max_length}
+                    if self._forced_bos_token_id is not None:
+                        gen_kwargs["forced_bos_token_id"] = self._forced_bos_token_id
+                    if self.num_beams and self.num_beams > 1:
+                        gen_kwargs["num_beams"] = self.num_beams
+                    generated = self._model.generate(**encoded, **gen_kwargs)
                 out = self._tokenizer.batch_decode(
                     generated, skip_special_tokens=True,
                 )[0].strip()

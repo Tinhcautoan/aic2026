@@ -68,6 +68,7 @@ class HybridEmbeddingEngine:
                 self._translator = VietnameseEnglishTranslator(
                     model_name=settings.VI_EN_TRANSLATION_MODEL,
                     device=settings.VI_EN_TRANSLATION_DEVICE,
+                    num_beams=settings.VI_EN_TRANSLATION_NUM_BEAMS,
                 )
             except Exception as e:
                 logger.warning(f"vi->en translator disabled: {e}")
