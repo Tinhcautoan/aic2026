@@ -108,6 +108,10 @@ class VietnameseEnglishTranslator:
                 )
                 return False
 
+    def preload(self) -> bool:
+        """Eagerly download + load the model (call at startup to avoid first-query latency)."""
+        return self._load()
+
     def _detect_forced_bos(self):
         """Resolve the English target-language BOS token id for the active model."""
         tok = self._tokenizer

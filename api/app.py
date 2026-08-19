@@ -229,6 +229,18 @@ async def lifespan(app: FastAPI):
     if PreprocessingPipeline:
         preprocessing_pipeline = PreprocessingPipeline(embedding_engine=embedding_engine, milvus_store=milvus_store)
 
+    # ---- Preload all models at startup (except the VLM, which is an external API) ----
+    if embedding_engine is not None:
+        try:
+            embedding_engine.warmup()
+        except Exception as e:
+            logger.warning(f"Embedding engine warmup failed: {e}")
+    if preprocessing_pipeline is not None:
+        try:
+            preprocessing_pipeline.keyframe_extractor.warmup()
+        except Exception as e:
+            logger.warning(f"Keyframe model warmup failed: {e}")
+
     # ---- Ingest existing local data (persistent_store / keyframes / videos) ----
     if milvus_store is not None and settings.AUTO_INGEST_LOCAL_DATA:
         from retrieval.local_ingest import ingest_local_data_if_empty

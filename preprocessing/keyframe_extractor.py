@@ -252,6 +252,10 @@ class KeyframeExtractor:
 
     # ── Model loading (single fallback) ────────────────────────────── #
 
+    def warmup(self) -> None:
+        """Preload the feature model so the first video doesn't block on download."""
+        self._load_model()
+
     def _load_model(self) -> None:
         if self._model is not None:
             return

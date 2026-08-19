@@ -70,8 +70,24 @@ class MilvusVectorStore:
             logger.warning(f"Could not inspect collection schema: {e}")
         return None
 
+    def _build_index_params(self, fields, index_type):
+        ip = self.client.prepare_index_params()
+        for field in fields:
+            kwargs = dict(
+                field_name=field,
+                index_type=index_type,
+                metric_type=settings.MILVUS_METRIC_TYPE,
+            )
+            if index_type == "HNSW":
+                kwargs["params"] = {
+                    "M": settings.MILVUS_M,
+                    "efConstruction": settings.MILVUS_EF_CONSTRUCTION,
+                }
+            ip.add_index(**kwargs)
+        return ip
+
     def _create_collection(self):
-        """Create the collection schema (indexes are created by _ensure_index)."""
+        """Create the collection schema + index at creation time (most reliable in Milvus Lite)."""
         schema = MilvusClient.create_schema(auto_id=True, enable_dynamic_field=False)
         schema.add_field("id", DataType.INT64, is_primary=True)
         schema.add_field("video_id", DataType.VARCHAR, max_length=256)
@@ -81,47 +97,44 @@ class MilvusVectorStore:
         schema.add_field("siglip2_embedding", DataType.FLOAT_VECTOR, dim=self.dim)
         schema.add_field("metadata", DataType.JSON)
 
-        self.client.create_collection(self.collection_name, schema=schema)
+        index_params = self._build_index_params(
+            ["clip_embedding", "siglip2_embedding"], settings.MILVUS_INDEX_TYPE,
+        )
+        self.client.create_collection(self.collection_name, schema=schema, index_params=index_params)
         logger.info(f"Created collection: {self.collection_name}")
 
     def _ensure_index(self):
         """Create vector indexes if missing (Milvus search requires an index).
 
-        Falls back to AUTOINDEX / FLAT if the configured index type (HNSW)
-        isn't available in this Milvus Lite build.
+        Each attempt is VERIFIED via list_indexes because Milvus Lite can
+        silently ignore index creation. Falls back HNSW -> AUTOINDEX -> FLAT.
         """
-        try:
-            existing = set(self.client.list_indexes(self.collection_name))
-        except Exception:
-            existing = set()
+        def _indexed():
+            try:
+                return set(self.client.list_indexes(self.collection_name))
+            except Exception:
+                return set()
 
-        missing = [f for f in ("clip_embedding", "siglip2_embedding") if f not in existing]
+        missing = [f for f in ("clip_embedding", "siglip2_embedding") if f not in _indexed()]
         if not missing:
             return
 
-        candidates = [
-            (settings.MILVUS_INDEX_TYPE,
-             {"M": settings.MILVUS_M, "efConstruction": settings.MILVUS_EF_CONSTRUCTION}),
-            ("AUTOINDEX", {}),
-            ("FLAT", {}),
-        ]
-        for index_type, params in candidates:
-            index_params = self.client.prepare_index_params()
-            for field in missing:
-                index_params.add_index(
-                    field_name=field,
-                    index_type=index_type,
-                    metric_type=settings.MILVUS_METRIC_TYPE,
-                    params=params,
-                )
+        for index_type in (settings.MILVUS_INDEX_TYPE, "AUTOINDEX", "FLAT"):
+            index_params = self._build_index_params(missing, index_type)
             try:
                 self.client.create_index(self.collection_name, index_params=index_params)
-                logger.info(f"Created {index_type} indexes on {missing} for {self.collection_name}")
-                return
+                if all(f in _indexed() for f in missing):
+                    logger.info(f"Created {index_type} indexes on {missing} for {self.collection_name}")
+                    return
+                logger.warning(f"{index_type} index creation not verified; trying next")
             except Exception as e:
                 logger.warning(f"{index_type} index creation failed: {e}")
 
-        logger.error(f"Could not create any index on {self.collection_name}")
+        logger.error(
+            f"Could not create any index on {self.collection_name}. "
+            f"Delete the milvus.db file and restart so the collection is recreated "
+            f"fresh (index is created before data insertion)."
+        )
 
     def insert_frames(
         self,

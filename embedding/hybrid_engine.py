@@ -77,6 +77,11 @@ class HybridEmbeddingEngine:
         elapsed = time.time() - start_time
         logger.info(f"Hybrid Embedding Engine initialized in {elapsed:.2f}s")
 
+    def warmup(self):
+        """Preload lazily-loaded models (the vi->en translator) at startup."""
+        if self._translator is not None:
+            self._translator.preload()
+
     def _maybe_translate(self, text: str) -> str:
         """Translate Vietnamese to English so the English-only TULIP/SigLIP2
         text encoders embed it correctly. English text passes through unchanged."""

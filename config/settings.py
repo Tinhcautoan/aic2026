@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # Milvus Configuration (Milvus Lite — file-based, no Docker / no port 19530)
     MILVUS_DB_PATH: Path = PROJECT_ROOT / "milvus.db"  # local file URI for MilvusClient
     MILVUS_COLLECTION_NAME: str = "video_frames"
-    MILVUS_INDEX_TYPE: str = "HNSW"
+    MILVUS_INDEX_TYPE: str = "AUTOINDEX"  # AUTOINDEX is most compatible with Milvus Lite; set HNSW via .env for standalone
     MILVUS_METRIC_TYPE: str = "COSINE"
     MILVUS_EF_CONSTRUCTION: int = 200
     MILVUS_M: int = 16
