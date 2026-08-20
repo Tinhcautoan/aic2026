@@ -996,6 +996,8 @@ def create_app() -> FastAPI:
                     video_id=video_id, frame_indices=None,
                 )
 
+            cand_indices = {c["frame_idx"] for c in candidates}
+
             embs = embedding_engine.encode_text(event_text)
             clip_emb = embs["clip"]
             siglip2_emb = embs["siglip2"]
@@ -1004,6 +1006,8 @@ def create_app() -> FastAPI:
             results = []
             for fe in frame_embs:
                 fi = fe["frame_idx"]
+                if cand_indices and fi not in cand_indices:
+                    continue
                 clip_sim = float(np.dot(clip_emb, fe["clip_emb"]))
                 siglip2_sim = float(np.dot(siglip2_emb, fe["siglip2_emb"]))
                 avg_sim = (clip_sim + siglip2_sim) / 2.0
@@ -1086,7 +1090,7 @@ def create_app() -> FastAPI:
                     frame_idx=frames[0] if frames else 0,
                     frames=frames,
                     score=a.total_score,
-                    timestamp=float(frames[0]) if frames else 0.0,
+                    timestamp=float(frames[0]) / 25.0 if frames else 0.0,
                     event_frames=[{"event": ef.event_text, "frame_idx": ef.frame_idx, "score": ef.score} for ef in a.event_frames],
                 ))
 
