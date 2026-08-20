@@ -56,7 +56,7 @@ class TestEndToEndQa(unittest.TestCase):
         ]
         result = expand_rows(rows, max_rows=100)
         self.assertEqual(len(result), 2)
-        self.assertIn(",5", result[0].line)
+        self.assertIn(', "5"', result[0].line)
 
 
 class TestEndToEndTrake(unittest.TestCase):

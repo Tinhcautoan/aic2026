@@ -18,7 +18,10 @@ from loguru import logger
 from config import settings
 from embedding.hybrid_engine import HybridEmbeddingEngine
 from retrieval.reranker import HybridReranker
-from retrieval.milvus_store import MilvusVectorStore
+try:
+    from retrieval.milvus_store import MilvusVectorStore
+except ImportError:
+    MilvusVectorStore = None
 from retrieval.redis_cache import RedisCacheManager
 from preprocessing.pipeline import PreprocessingPipeline
 from evaluation.metrics import evaluate_retrieval, run_evaluation_from_file
@@ -38,7 +41,11 @@ def cmd_serve(args):
 def cmd_process(args):
     """Process and index a video."""
     engine = HybridEmbeddingEngine()
-    milvus = MilvusVectorStore()
+    if MilvusVectorStore:
+        milvus = MilvusVectorStore()
+    else:
+        from retrieval.persistent_store import PersistentVectorStore
+        milvus = PersistentVectorStore(str(settings.DATA_DIR / "persistent_store"))
     pipeline = PreprocessingPipeline(
         embedding_engine=engine,
         milvus_store=milvus,

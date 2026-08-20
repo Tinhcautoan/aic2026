@@ -141,8 +141,9 @@
         /* ── Right panel ────────────────────────────────────── */
         .results-panel {
             flex: 1; overflow-y: auto; padding: 16px;
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-            gap: 16px; align-content: start; align-items: start;
+            display: grid; grid-template-columns: repeat(5, 1fr);
+            grid-auto-rows: min-content;
+            gap: 36px 16px; align-content: start; align-items: start;
         }
         .result-card {
             background: var(--panel); border: 1px solid var(--border);
@@ -231,6 +232,7 @@
             width: min(960px, 100%); background: var(--panel);
             border: 1px solid var(--border); border-radius: 12px;
             overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.45);
+            position: relative;
         }
         .video-modal-header {
             display: flex; justify-content: space-between; align-items: center;
@@ -238,6 +240,13 @@
         }
         .video-modal-header .meta { color: var(--text-secondary); font-size: 0.78rem; }
         .video-modal video { width: 100%; max-height: 70vh; background: #000; display: block; }
+        .frame-overlay {
+            position: absolute; bottom: 12px; left: 12px;
+            background: rgba(0,0,0,0.72); color: #fff;
+            padding: 4px 10px; border-radius: 6px;
+            font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
+            pointer-events: none; z-index: 10;
+        }
         .video-modal-actions {
             display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border);
         }
@@ -415,11 +424,12 @@
             </div>
             <button class="btn-close" type="button" onclick="closeVideoModal()">&times;</button>
         </div>
-        <video id="videoPlayer" controls preload="metadata"></video>
+        <video id="videoPlayer" controls preload="auto"></video>
+        <div class="frame-overlay" id="frameOverlay">Frame 0</div>
         <div class="video-modal-actions">
             <button class="btn btn-secondary" type="button" onclick="seekVideoRelative(-5)">-5s</button>
             <button class="btn btn-secondary" type="button" onclick="seekVideoRelative(5)">+5s</button>
-            <button class="btn btn-primary" type="button" onclick="replayAtFrame()">Replay frame</button>
+            <button class="btn btn-primary" type="button" id="replayBtn" onclick="replayAtFrame()">Play frame</button>
         </div>
     </div>
 </div>
@@ -863,34 +873,35 @@
         const player = $('videoPlayer');
         $('videoModalTitle').textContent = videoId + ' \u00b7 frame ' + frameIdx;
         $('videoModalMeta').textContent = 'Loading video...';
-        player.src = API + '/api/video/' + encodeURIComponent(videoId);
-        modal.classList.add('open');
+        $('frameOverlay').textContent = 'Frame ' + frameIdx;
+        $('replayBtn').textContent = 'Play frame ' + frameIdx;
 
-        let seekDone = false;
-        const seekToTarget = function () {
-            if (seekDone) return;
-            seekDone = true;
-            player.onloadedmetadata = null;
-            player.oncanplay = null;
-            let t = videoModalState.timestamp;
-            if (!t && videoModalState.fps > 0) t = frameIdx / videoModalState.fps;
-            player.currentTime = Math.max(0, t);
-            $('videoModalMeta').textContent = 'Frame ' + frameIdx + ' \u00b7 ' + player.currentTime.toFixed(2) + 's';
-            player.play().catch(function () {});
+        player.pause();
+        player.removeAttribute('src');
+        player.load();
+
+        player.ontimeupdate = function () {
+            const cur = Math.round(player.currentTime * videoModalState.fps);
+            $('frameOverlay').textContent = 'Frame ' + cur;
         };
 
-        player.onloadedmetadata = seekToTarget;
-        player.oncanplay = seekToTarget;
+        player.onloadedmetadata = function () {
+            player.onloadedmetadata = null;
+            $('videoModalMeta').textContent = 'Frame ' + frameIdx + ' \u00b7 Click "Play frame" to start';
+        };
+
+        player.src = API + '/api/video/' + encodeURIComponent(videoId) + '?v=' + Date.now();
+        modal.classList.add('open');
 
         fetch(API + '/api/video/' + encodeURIComponent(videoId) + '/info')
             .then(r => r.ok ? r.json() : null)
             .then(info => {
-                if (!info) return;
-                videoModalState.fps = info.fps || 25;
-                if (!videoModalState.timestamp && frameIdx >= 0) {
-                    videoModalState.timestamp = frameIdx / videoModalState.fps;
+                if (info) {
+                    videoModalState.fps = info.fps || 25;
+                    if (!videoModalState.timestamp && frameIdx >= 0) {
+                        videoModalState.timestamp = frameIdx / videoModalState.fps;
+                    }
                 }
-                seekToTarget();
             })
             .catch(() => {});
     };
@@ -898,21 +909,44 @@
     window.closeVideoModal = function () {
         const player = $('videoPlayer');
         player.pause();
+        player.ontimeupdate = null;
         player.removeAttribute('src');
         player.load();
         $('videoModal').classList.remove('open');
     };
 
     window.seekVideoRelative = function (delta) {
-        $('videoPlayer').currentTime = Math.max(0, $('videoPlayer').currentTime + delta);
+        const player = $('videoPlayer');
+        player.currentTime = Math.max(0, player.currentTime + delta);
+        const cur = Math.round(player.currentTime * videoModalState.fps);
+        $('frameOverlay').textContent = 'Frame ' + cur;
     };
 
     window.replayAtFrame = function () {
         let t = videoModalState.timestamp;
         if (!t && videoModalState.fps > 0) t = videoModalState.frameIdx / videoModalState.fps;
+        t = Math.max(0, t);
         const player = $('videoPlayer');
-        player.currentTime = Math.max(0, t);
-        player.play().catch(() => {});
+        $('frameOverlay').textContent = 'Frame ' + videoModalState.frameIdx;
+
+        function doSeek() {
+            player.pause();
+            player.currentTime = t;
+            player.onseeked = function () {
+                player.onseeked = null;
+                player.currentTime = t;
+                player.play().catch(() => {});
+            };
+        }
+
+        if (player.readyState >= 2) {
+            doSeek();
+        } else {
+            player.oncanplay = function () {
+                player.oncanplay = null;
+                doSeek();
+            };
+        }
     };
 
     /* ── Keyboard shortcuts ─────────────────────────────────── */

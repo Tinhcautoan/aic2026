@@ -19,7 +19,10 @@ from loguru import logger
 from config import settings
 from embedding.hybrid_engine import HybridEmbeddingEngine
 from retrieval.reranker import HybridReranker
-from retrieval.milvus_store import MilvusVectorStore
+try:
+    from retrieval.milvus_store import MilvusVectorStore
+except ImportError:
+    MilvusVectorStore = None
 
 def compute_recall_at_k(
     ground_truth: List[str],

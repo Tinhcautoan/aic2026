@@ -46,7 +46,10 @@ def _lazy_import():
     if HybridEmbeddingEngine is None:
         from embedding.hybrid_engine import HybridEmbeddingEngine as HEE
         from retrieval.reranker import HybridReranker as HR
-        from retrieval.milvus_store import MilvusVectorStore as MVS
+        try:
+            from retrieval.milvus_store import MilvusVectorStore as MVS
+        except ImportError:
+            MVS = None
         from retrieval.local_store import LocalVectorStore as LVS
         from retrieval.persistent_store import PersistentVectorStore as PVS
         from retrieval.redis_cache import RedisCacheManager as RCM
@@ -211,7 +214,7 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize embedding engine: {e}")
         embedding_engine = None
     reranker = HybridReranker() if HybridReranker else None
-    # Milvus Lite (file-based). No Docker, no port, no fallback store.
+    # Milvus Lite (file-based). Falls back to PersistentVectorStore if unavailable.
     if MilvusVectorStore:
         try:
             milvus_store = MilvusVectorStore()
@@ -221,6 +224,14 @@ async def lifespan(app: FastAPI):
                 f"Milvus Lite init failed: {e}. "
                 f"Check read/write permissions for {settings.MILVUS_DB_PATH}"
             )
+            milvus_store = None
+    if milvus_store is None and PersistentVectorStore:
+        try:
+            store_path = str(settings.DATA_DIR / "persistent_store")
+            milvus_store = PersistentVectorStore(store_path)
+            logger.info(f"Fallback to PersistentVectorStore at {store_path}")
+        except Exception as e:
+            logger.error(f"PersistentVectorStore init failed: {e}")
             milvus_store = None
     if RedisCacheManager:
         redis_cache = RedisCacheManager()
@@ -793,7 +804,11 @@ def create_app() -> FastAPI:
         video_path = resolve_video_path(video_id)
         if not video_path:
             raise HTTPException(404, f"Video not found: {video_id}")
-        return FileResponse(video_path, media_type="video/mp4", filename=os.path.basename(video_path))
+        return FileResponse(
+            video_path,
+            media_type="video/mp4",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/api/video/{video_id}/info")
     async def get_video_info_endpoint(video_id: str):
