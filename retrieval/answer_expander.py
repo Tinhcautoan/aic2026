@@ -32,9 +32,9 @@ def format_csv_line(
     """
     Format a single answer line according to the BTC CSV spec.
 
-    - TKIS:  ``video_id,frame_idx``
-    - Q&A:   ``video_id,frame_idx,"answer"``
-    - TRAKE: ``video_id,f1,f2,...,fN``
+    - TKIS:  ``video_id, frame_idx``
+    - Q&A:   ``video_id, frame_idx, "answer"``
+    - TRAKE: ``video_id, f1, f2, ..., fN``
 
     No header row.  Answers containing commas or quotes are properly
     quoted using Python's csv module for RFC-4180 compliance.
@@ -42,18 +42,18 @@ def format_csv_line(
     parts: List[str] = [video_id]
     if frames is not None:
         parts.extend(str(f) for f in frames)
-        return ",".join(parts)
+        return ", ".join(parts)
 
     if frame_idx is not None:
         parts.append(str(frame_idx))
 
     if answer is not None:
         buf = io.StringIO()
-        writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
+        writer = csv.writer(buf, quoting=csv.QUOTE_ALL)
         writer.writerow([answer])
         parts.append(buf.getvalue().rstrip("\r\n"))
 
-    return ",".join(parts)
+    return ", ".join(parts)
 
 
 def expand_rows(

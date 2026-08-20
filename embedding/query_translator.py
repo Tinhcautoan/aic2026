@@ -69,6 +69,8 @@ class VietnameseEnglishTranslator:
         self._forced_bos_token_id = None
         self._failed = False
         self._lock = threading.Lock()
+        self._cache: dict = {}        # text -> translated text (avoid re-translating)
+        self._cache_max: int = 4096   # simple bound; cleared when exceeded
 
     def _load(self) -> bool:
         if self._model is not None:
@@ -131,6 +133,9 @@ class VietnameseEnglishTranslator:
     def translate(self, text: str) -> str:
         if not self._load():
             return text
+        cached = self._cache.get(text)
+        if cached is not None:
+            return cached
         try:
             import torch
 
@@ -157,10 +162,15 @@ class VietnameseEnglishTranslator:
                 out = self._tokenizer.batch_decode(
                     generated, skip_special_tokens=True,
                 )[0].strip()
-            return out or text
+            result = out or text
         except Exception as e:
             logger.warning(f"vi->en translation failed ({e}); using original text")
-            return text
+            result = text
+
+        if len(self._cache) >= self._cache_max:
+            self._cache.clear()
+        self._cache[text] = result
+        return result
 
     def maybe_translate_to_english(self, text: str) -> str:
         return self.translate(text) if is_vietnamese(text) else text

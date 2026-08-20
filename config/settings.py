@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     VI_EN_TRANSLATION_ENABLED: bool = True
     VI_EN_TRANSLATION_MODEL: str = "vinai/vinai-translate-vi2en-v2"
     VI_EN_TRANSLATION_DEVICE: str = "cpu"  # keep translation off the small 4GB GPU
-    VI_EN_TRANSLATION_NUM_BEAMS: int = 4  # beam search improves translation quality
+    VI_EN_TRANSLATION_NUM_BEAMS: int = 1  # greedy (fast); set 4 for higher-quality translation
     VI_EN_TRANSLATION_MODEL_DIR: str = ""  # "" → auto-use HF hub; set to local path for offline
 
     # Keyframe Extraction
