@@ -3,6 +3,10 @@ data/videos/
 data/keyframes/
 data/persistent_store/
 data/cache/
+data/media-info-aic25-b1
+
+# Local Milvus Lite database (runtime artifact, regenerable via ingestion)
+milvus.db/
 
 # Model checkpoints
 checkpoints/

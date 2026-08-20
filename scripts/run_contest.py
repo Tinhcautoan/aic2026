@@ -200,6 +200,79 @@ def _make_event_search_fn(store, engine):
     return event_search_fn
 
 
+def _load_search_backend(engine):
+    """Prefer Milvus + the full retrieval funnel (BM25 + cross-encoder) so the
+    contest media-info metadata (title/keywords/date) engages; fall back to
+    PersistentVectorStore when Milvus is unavailable.
+
+    Returns (store, search_fn) where ``search_fn(query_text, clip_emb,
+    siglip2_emb, top_k)`` returns candidate dicts best-first.
+    """
+    from config import settings
+    from retrieval.reranker import HybridReranker
+    from retrieval.bm25_search import BM25Index, build_bm25_index_from_store
+    from retrieval.hybrid_fusion import HybridFusionPipeline
+    from retrieval import media_meta
+
+    try:
+        from retrieval.milvus_store import MilvusVectorStore
+
+        store = MilvusVectorStore()
+
+        bm25 = BM25Index()
+        if not (bm25.load() and bm25.size > 0):
+            build_bm25_index_from_store(store, bm25)
+            if bm25.size > 0:
+                bm25.save()
+
+        cross_encoder = None
+        if settings.CROSS_ENCODER_ENABLED:
+            try:
+                from retrieval.cross_encoder_reranker import CrossEncoderReranker
+                cross_encoder = CrossEncoderReranker()
+            except Exception as e:
+                print(f"  [warn] cross-encoder unavailable: {e}")
+
+        pipeline = HybridFusionPipeline(
+            vector_store=store,
+            bm25_index=bm25,
+            dense_reranker=HybridReranker(),
+            cross_encoder=cross_encoder,
+        )
+
+        def search_fn(query_text, clip_emb, siglip2_emb, top_k=100):
+            results = pipeline.search(
+                query=query_text,
+                clip_query_emb=clip_emb,
+                siglip2_query_emb=siglip2_emb,
+                final_top_k=top_k,
+                use_bm25=True,
+                use_cross_encoder=True,
+                expand_neighbors=False,
+                dedup=False,
+            )
+            # Enrich each hit with the real video frame count (from media-info
+            # length) so Q&A/TRAKE sample realistic delta windows.
+            for r in results:
+                if "frame_count" not in r:
+                    fc = media_meta.video_frame_count(r.get("video_id", ""))
+                    if fc:
+                        r["frame_count"] = fc
+            return results
+
+        print(f"  Milvus + full funnel ready (BM25={bm25.size} docs, "
+              f"cross_encoder={'yes' if cross_encoder else 'no'})")
+        return store, search_fn
+
+    except Exception as e:
+        print(f"  [warn] Milvus/funnel unavailable ({e}); "
+              f"falling back to PersistentVectorStore")
+        from retrieval.persistent_store import PersistentVectorStore
+        store = PersistentVectorStore(str(settings.DATA_DIR / "persistent_store"))
+        print(f"Loaded: {len(store._ids)} frames in persistent store")
+        return store, store.hybrid_search
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run contest queries (TKIS/Q&A/TRAKE)")
     parser.add_argument("--queries-dir", required=True, help="Directory with query .txt files")
@@ -217,15 +290,10 @@ def main():
     print("Loading models...", flush=True)
 
     from embedding.hybrid_engine import HybridEmbeddingEngine
-    from retrieval.persistent_store import PersistentVectorStore
     from retrieval.vqa_llm import answer_from_vlm
-    from config import settings
 
     engine = HybridEmbeddingEngine()
-    store = PersistentVectorStore(str(settings.DATA_DIR / "persistent_store"))
-    print(f"Loaded: {len(store._ids)} frames in store")
-
-    search_fn = store.hybrid_search
+    store, search_fn = _load_search_backend(engine)
     embedding_fn = _make_embedding_fn(engine)
     vlm_fn = answer_from_vlm
     event_search_fn = _make_event_search_fn(store, engine)

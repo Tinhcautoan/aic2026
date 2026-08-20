@@ -72,6 +72,13 @@ class Settings(BaseSettings):
     BM25_INDEX_PATH: str = ""  # "" -> defaults to CACHE_DIR/bm25_index.pkl at runtime
     BM25_USE_VN_SEGMENTATION: bool = False  # True -> use underthesea word segmentation
 
+    # Contest media metadata (data/media-info-aic25-b1/media-info/<VIDEO_ID>.json).
+    # Video-level text (title / keywords / publish_date / description) is merged
+    # into every frame's metadata at ingestion so the BM25 + cross-encoder
+    # stages of the funnel actually engage instead of being skipped.
+    MEDIA_INFO_DIR: Path = DATA_DIR / "media-info-aic25-b1" / "media-info"
+    MEDIA_FRAME_COUNT_FPS: float = 25.0  # fps used to estimate frame_count from media-info length
+
     # Cross-Encoder Re-ranker Configuration
     CROSS_ENCODER_ENABLED: bool = True
     CROSS_ENCODER_MODEL_NAME: str = "BAAI/bge-reranker-v2-m3"  # multilingual, handles Vietnamese

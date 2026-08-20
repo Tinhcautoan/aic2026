@@ -15,6 +15,18 @@ from pymilvus import MilvusClient, DataType
 
 from config import settings
 
+# milvus-lite on Windows ships as the pure-Python 3.x rebuild (2.4.x has no
+# Windows wheels).  Its gRPC server omits the AllocTimestamp RPC that pymilvus
+# 3.x needs while waiting for index creation — patch it before any client
+# connects.  No-op on Linux/vast.ai where milvus-lite 2.4.x is installed.
+from retrieval.milvus_lite_compat import patch_milvus_lite_alloc_timestamp
+
+# Contest media-info video text (title/keywords/publish_date/...) merged into
+# every frame's metadata so BM25 + cross-encoder stages have real documents.
+from retrieval import media_meta
+
+patch_milvus_lite_alloc_timestamp()
+
 
 class MilvusVectorStore:
     """Milvus Lite vector store for CLIP and SigLIP2 frame embeddings."""
@@ -29,6 +41,9 @@ class MilvusVectorStore:
 
     def _init_client(self):
         """Open the Milvus Lite file-based client."""
+        # Re-apply defensively (idempotent) in case this store is imported in a
+        # process where milvus_lite was already imported by something else.
+        patch_milvus_lite_alloc_timestamp()
         uri = str(settings.MILVUS_DB_PATH)
         logger.info(f"Initializing Milvus Lite at {uri}")
         self.client = MilvusClient(uri=uri)
@@ -161,17 +176,24 @@ class MilvusVectorStore:
             if hasattr(siglip2_embeddings, "tolist") else list(siglip2_embeddings)
         )
 
-        data = [
-            {
+        # Merge contest media-info video text (title/keywords/date/...) into
+        # every frame's metadata so BM25 + cross-encoder stages can see it.
+        vmeta = media_meta.frame_metadata_fields(video_id)
+
+        data = []
+        for i in range(n):
+            md = dict(metadata_list[i] or {})
+            if vmeta:
+                for _k, _v in vmeta.items():
+                    md.setdefault(_k, _v)
+            data.append({
                 "video_id": video_id,
                 "frame_idx": int(frame_indices[i]),
                 "timestamp": float(timestamps[i]),
                 "clip_embedding": clip_list[i],
                 "siglip2_embedding": sig_list[i],
-                "metadata": metadata_list[i] or {},
-            }
-            for i in range(n)
-        ]
+                "metadata": md,
+            })
 
         try:
             res = self.client.insert(self.collection_name, data=data)
@@ -346,6 +368,89 @@ class MilvusVectorStore:
                 "siglip2_emb": np.asarray(r.get("siglip2_embedding", []), dtype=np.float32),
             })
         return results
+
+    def get_all_frame_records(self, batch_size: int = 10000) -> List[dict]:
+        """Return every frame as {'video_id','frame_idx','metadata': {...}}.
+
+        Used to (re)build the BM25 sparse index from the Milvus collection.
+        NOTE: milvus-lite's query(offset=...) is O(n) per call, so offset
+        pagination over a large collection is O(n^2) (minutes for ~100k rows).
+        A single large-limit query is O(n) and returns everything in seconds.
+        """
+        if self.client is None:
+            return []
+        output_fields = ["video_id", "frame_idx", "metadata"]
+        try:
+            rows = self.client.query(
+                collection_name=self.collection_name,
+                output_fields=output_fields,
+                limit=max(batch_size * 10, 300000),
+            )
+            return [
+                {
+                    "video_id": r.get("video_id", ""),
+                    "frame_idx": int(r.get("frame_idx", 0)),
+                    "metadata": r.get("metadata") or {},
+                }
+                for r in rows
+            ]
+        except Exception as e:
+            logger.error(f"get_all_frame_records failed: {e}")
+            return []
+
+    def enrich_metadata_from_media_info(self, batch_size: int = 1000) -> int:
+        """Backfill contest media-info text into existing frames' metadata.
+
+        Rows inserted before the media-info integration have empty metadata;
+        this rewrites them (partial upsert of the ``metadata`` field only —
+        embeddings untouched) so BM25 + cross-encoder see the video text.
+        Idempotent: rows that already carry ``video_title`` are skipped.
+        Returns the number of rows updated.
+        """
+        if self.client is None:
+            return 0
+        # Fetch only small fields (no embeddings) — partial upsert writes the
+        # metadata field back without touching the vector columns.
+        # (Single large-limit query: offset pagination is O(n^2) in milvus-lite.)
+        output_fields = ["id", "video_id", "metadata"]
+        try:
+            rows = self.client.query(
+                collection_name=self.collection_name,
+                output_fields=output_fields,
+                limit=max(batch_size * 10, 300000),
+            )
+        except Exception as e:
+            logger.error(f"enrich_metadata_from_media_info query failed: {e}")
+            return 0
+
+        changed = 0
+        updates: List[dict] = []
+        for r in rows:
+            meta = r.get("metadata") or {}
+            if meta.get("video_title"):
+                continue
+            vmeta = media_meta.frame_metadata_fields(r.get("video_id", ""))
+            if not vmeta:
+                continue
+            new_meta = dict(meta)
+            for k, v in vmeta.items():
+                new_meta.setdefault(k, v)
+            updates.append({"id": r.get("id"), "metadata": new_meta})
+            changed += 1
+            if len(updates) >= batch_size:
+                self.client.upsert(self.collection_name, data=updates, partial_update=True)
+                logger.info(
+                    f"Media-info metadata backfill: {changed}/{len(rows)} rows processed"
+                )
+                updates = []
+        if updates:
+            self.client.upsert(self.collection_name, data=updates, partial_update=True)
+
+        if changed:
+            logger.info(f"Enriched {changed} existing frames with media-info metadata")
+        else:
+            logger.info("No existing frames needed media-info metadata backfill")
+        return changed
 
     def get_collection_stats(self) -> dict:
         if self.client is None:

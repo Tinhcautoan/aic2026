@@ -266,12 +266,20 @@ async def lifespan(app: FastAPI):
             logger.warning(f"Local data ingest failed: {e}")
 
     # ---- BM25 sparse index: try to restore from disk, else start empty ----
+    # Then auto-build from stored frame metadata (incl. contest media-info
+    # video text) when the persisted index is missing/stale/empty.
     if BM25Index:
         try:
             bm25_index = BM25Index()
             loaded = bm25_index.load()
             logger.info(f"BM25 index {'loaded from disk' if loaded else 'starting empty'} "
                         f"({bm25_index.size} documents)")
+            if (not loaded or bm25_index.size == 0) and milvus_store is not None:
+                from retrieval.bm25_search import build_bm25_index_from_store
+                n = build_bm25_index_from_store(milvus_store, bm25_index)
+                if n:
+                    bm25_index.save()
+                logger.info(f"BM25 index auto-built from Milvus store: {bm25_index.size} documents")
         except Exception as e:
             logger.warning(f"BM25 index unavailable: {e}")
             bm25_index = None

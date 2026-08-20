@@ -32,6 +32,11 @@ except ImportError:  # pragma: no cover
     BM25Okapi = None
 
 from config import settings
+from .media_meta import date_variants_text, frame_metadata_fields
+
+# Bump whenever the per-frame document text builder changes so persisted BM25
+# indexes built with the old builder are rebuilt on the next startup.
+BM25_INDEX_VERSION = 2
 
 
 # Keep Vietnamese diacritics (Latin Extended Additional block) when tokenizing.
@@ -44,6 +49,47 @@ _STOPWORDS = {
     "va", "va_", "la", "cua", "va", "nhung", "mot", "cac", "nhung", "va",
     "và", "là", "của", "một", "các", "những", "và", "có", "được", "này",
 }
+
+# Date patterns inside user queries — used by expand_query_dates() so BM25
+# can match the date variants stored in frame documents (see media_meta.py).
+_QUERY_DMY_RE = re.compile(r"(?<!\d)(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})(?!\d)")
+_QUERY_VI_DATE_RE = re.compile(
+    r"ng\s?[àa]y\s+(\d{1,2})\s*(?:[/\-]\s*)?(?:tháng\s*)?(\d{1,2})?", re.IGNORECASE,
+)
+
+
+def expand_query_dates(query: str) -> str:
+    """Append compact / spelled-out forms of dates found in a query.
+
+    ``"bản tin ngày 1/8/2024"`` -> the same text + ``01082024`` +
+    ``01/08/2024`` + ``ngày 1 tháng 8 năm 2024``.  BM25 is pure token
+    overlap, so having the corpus store these variants (media_meta) is not
+    enough — the query must produce the same tokens, otherwise the short
+    digit tokens (1, 8, 2024) are drowned out by OCR/ASR numbers.
+    """
+    if not query:
+        return query
+    extra: List[str] = []
+    for m in _QUERY_DMY_RE.finditer(query):
+        d, mm, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if not (1 <= mm <= 12 and 1 <= d <= 31):
+            continue
+        if y < 100:
+            y += 2000
+        extra.append(f"{d:02d}{mm:02d}{y:04d}")
+        extra.append(f"{d:02d}/{mm:02d}/{y:04d}")
+        extra.append(f"ngày {d} tháng {mm} năm {y:04d}")
+    for m in _QUERY_VI_DATE_RE.finditer(query):
+        d = int(m.group(1))
+        mm = int(m.group(2)) if m.group(2) else 0
+        if not (1 <= d <= 31 and (mm == 0 or 1 <= mm <= 12)):
+            continue
+        if mm:
+            extra.append(f"{d:02d}{mm:02d}")
+            extra.append(f"{d:02d}/{mm:02d}")
+    if not extra:
+        return query
+    return query + " | " + " | ".join(dict.fromkeys(extra))
 
 
 def simple_tokenize(text: str) -> List[str]:
@@ -85,7 +131,9 @@ def build_frame_document_text(metadata: dict) -> str:
         - asr_transcript: str (segment near this frame's timestamp, not whole video)
         - objects: list[str] or list[dict] with a 'label'/'class' key (Faster R-CNN)
         - caption: str (if you generate captions separately)
-        - video_title / video_description: str
+        - video_title / video_description / video_keywords / video_publish_date:
+            video-level contest media-info text merged into every frame at
+            ingestion (see retrieval/media_meta.py)
     """
     parts = []
     if metadata.get("ocr_text"):
@@ -108,6 +156,20 @@ def build_frame_document_text(metadata: dict) -> str:
         parts.append(str(metadata["caption"]))
     if metadata.get("video_title"):
         parts.append(str(metadata["video_title"]))
+    keywords = metadata.get("video_keywords")
+    if keywords:
+        if isinstance(keywords, list):
+            parts.append(", ".join(str(k) for k in keywords if k))
+        else:
+            parts.append(str(keywords))
+    if metadata.get("video_description"):
+        parts.append(str(metadata["video_description"]))
+    if metadata.get("video_publish_date"):
+        parts.append(date_variants_text(str(metadata["video_publish_date"])))
+    if metadata.get("video_author"):
+        parts.append(str(metadata["video_author"]))
+    if metadata.get("video_channel"):
+        parts.append(str(metadata["video_channel"]))
     return " | ".join(p for p in parts if p)
 
 
@@ -194,7 +256,9 @@ class BM25Index:
         """
         if self._bm25 is None or not self._doc_keys:
             return []
-        tokens = self.tokenizer(query)
+        # Expand date substrings (1/8/2024 -> 01082024, ngày 1 tháng 8 năm 2024,
+        # ...) so they produce the same tokens the corpus stores (media_meta).
+        tokens = self.tokenizer(expand_query_dates(query))
         if not tokens:
             return []
 
@@ -234,6 +298,7 @@ class BM25Index:
             os.makedirs(dir_name, exist_ok=True)
         with open(path, "wb") as f:
             pickle.dump({
+                "version": BM25_INDEX_VERSION,
                 "doc_keys": self._doc_keys,
                 "doc_meta": self._doc_meta,
                 "tokenized_corpus": self._tokenized_corpus,
@@ -244,8 +309,19 @@ class BM25Index:
         path = path or settings.BM25_INDEX_PATH or str(settings.CACHE_DIR / "bm25_index.pkl")
         if not os.path.exists(path):
             return False
-        with open(path, "rb") as f:
-            data = pickle.load(f)
+        try:
+            with open(path, "rb") as f:
+                data = pickle.load(f)
+        except Exception as e:
+            logger.warning(f"BM25 index at {path} unreadable, will rebuild: {e}")
+            return False
+        # Stale indexes built by an older build_frame_document_text must be
+        # rebuilt (e.g. before contest media-info metadata was merged in).
+        if data.get("version") != BM25_INDEX_VERSION:
+            logger.info(
+                f"BM25 index version {data.get('version')} != {BM25_INDEX_VERSION} — rebuilding"
+            )
+            return False
         self._doc_keys = data["doc_keys"]
         self._doc_meta = data["doc_meta"]
         self._tokenized_corpus = data["tokenized_corpus"]
@@ -267,6 +343,60 @@ class BM25Index:
     @property
     def size(self) -> int:
         return len(self._doc_keys)
+
+
+def build_bm25_index_from_store(store, bm25_index, batch_size: int = 10000) -> int:
+    """Populate a BM25Index from every frame's metadata in the vector store.
+
+    Requires ``store.get_all_frame_records()`` (MilvusVectorStore provides it)
+    -> list of ``{'video_id', 'frame_idx', 'metadata': dict}``.  The metadata
+    already contains the contest media-info video text (title/keywords/date)
+    merged in at ingestion, so the sparse stage finally has real documents.
+
+    Returns the number of documents added (0 when nothing was built).
+    """
+    if store is None or bm25_index is None:
+        return 0
+    getter = getattr(store, "get_all_frame_records", None)
+    if getter is None:
+        logger.warning("build_bm25_index_from_store: store has no get_all_frame_records()")
+        return 0
+
+    # Backfill contest media-info text into old rows (upsert, no re-embedding)
+    # so the cross-encoder stage also sees it.  Idempotent / optional.
+    enrich = getattr(store, "enrich_metadata_from_media_info", None)
+    if enrich is not None:
+        try:
+            enrich()
+        except Exception as e:
+            logger.warning(f"build_bm25_index_from_store: metadata enrichment failed: {e}")
+
+    try:
+        records = getter(batch_size=batch_size)
+    except Exception as e:
+        logger.warning(f"build_bm25_index_from_store: could not read frame records: {e}")
+        return 0
+    if not records:
+        logger.info("build_bm25_index_from_store: store is empty, nothing to index")
+        return 0
+
+    # Belt-and-suspenders: even if a row's stored metadata is still empty,
+    # merge the video-level media text at build time so the BM25 document is
+    # never empty for a video that has a media-info file.
+    merged = []
+    for r in records:
+        md = dict(r.get("metadata") or {})
+        vmeta = frame_metadata_fields(r.get("video_id", ""))
+        if vmeta:
+            for k, v in vmeta.items():
+                md.setdefault(k, v)
+        merged.append({**r, "metadata": md})
+    records = merged
+
+    bm25_index.add_documents(records)
+    bm25_index.build()
+    logger.info(f"BM25 index built from store: {len(records)} documents")
+    return len(records)
 
 
 class ElasticBM25Index:

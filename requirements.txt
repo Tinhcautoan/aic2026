@@ -19,8 +19,15 @@ websockets>=13.0
 redis>=5.0.0
 
 # Vector Database
-pymilvus==2.4.12  # Milvus Lite client — pinned to match milvus-lite
-milvus-lite==2.4.12  # embedded server; pymilvus 2.5+ calls AllocTimestamp (not in lite 2.4)
+# Linux/vast.ai deploys the pinned 2.4.x pair (pymilvus 2.5+ calls
+# AllocTimestamp, which milvus-lite 2.4 does not implement).
+# Windows has no milvus-lite 2.4.x wheels (and pymilvus 2.4.x pins grpcio
+# without cp314 builds), so it installs the pure-Python 3.x stack instead;
+# retrieval/milvus_lite_compat.py patches the missing AllocTimestamp RPC.
+pymilvus==2.4.12; sys_platform != "win32"
+milvus-lite==2.4.12; sys_platform != "win32"
+pymilvus>=3.0.1,<4; sys_platform == "win32"
+milvus-lite>=3.2.0,<4; sys_platform == "win32"
 
 # ML / Embedding (CUDA 12.6 builds)
 # NOTE: torchaudio's latest release is 2.11.0 (no 2.12/2.13 exists), but it works
