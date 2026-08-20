@@ -89,6 +89,7 @@ class QaSearchResultItem(BaseModel):
     video_id: str = ""
     frame_idx: int = 0
     answer: str = ""
+    is_vague: bool = False
     final_score: float = 0.0
     confidence: float = 0.0
     timestamp: float = 0.0

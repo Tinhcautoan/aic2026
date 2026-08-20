@@ -365,6 +365,9 @@
                     <span class="spinner"></span>Search
                 </button>
                 <button class="btn btn-secondary" onclick="clearResults()">Clear</button>
+                <label style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;font-size:0.78rem;color:var(--text-secondary);cursor:pointer">
+                    <input type="checkbox" id="qaIncludeVague" onchange="reRenderQa()"> Include vague answers
+                </label>
             </div>
         </div>
 
@@ -442,6 +445,7 @@
     const API = window.location.origin;
     let currentMode = 'tkis';
     let currentResults = [];
+    let lastQaData = null;
     let searchTimer = null;
     let csvRows = [];
     let videoModalState = { videoId: '', frameIdx: 0, timestamp: 0, fps: 25 };
@@ -627,6 +631,7 @@
             if (!r.ok) throw new Error((await r.json()).detail || 'Q&A search failed');
             const d = await r.json();
             currentResults = d.results || [];
+            lastQaData = d;
             renderQa(d, question);
             updateCsvExport();
         } catch (e) {
@@ -642,7 +647,11 @@
             p.innerHTML = '<div class="empty-state"><div class="icon">\u{1F615}</div><p>No results found</p></div>';
             return;
         }
-        p.innerHTML = data.results.map((r, i) => `
+        let results = data.results;
+        if (!$('qaIncludeVague').checked) {
+            results = results.filter(r => !r.is_vague);
+        }
+        p.innerHTML = results.map((r, i) => `
             <div class="result-card" onclick="openVideoModal('${escapeJs(r.video_id)}',${r.frame_idx},${r.timestamp || 0})">
                 <div class="frame-preview">
                     <img src="/api/frame/${encodeURIComponent(r.video_id)}/${r.frame_idx}"
@@ -664,6 +673,14 @@
                 </div>
             </div>`).join('');
     }
+
+    window.reRenderQa = function () {
+        if (lastQaData && currentMode === 'qa') {
+            const question = $('qaQuestion').value.trim();
+            renderQa(lastQaData, question);
+            updateCsvExport();
+        }
+    };
 
     /* ── TRAKE ──────────────────────────────────────────────── */
 
@@ -800,7 +817,11 @@
     }
 
     function buildQaCsvRow(results) {
-        return results
+        let filtered = results;
+        if (!$('qaIncludeVague').checked) {
+            filtered = results.filter(r => !r.is_vague);
+        }
+        return filtered
             .filter(r => r && r.video_id)
             .map(r => {
                 const ans = (r.answer || '').replace(/"/g, '""');

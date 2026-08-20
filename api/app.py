@@ -6,6 +6,7 @@ Supports Milvus (Docker) or in-memory vector store.
 
 import os
 import math
+import re
 import time
 import asyncio
 from contextlib import asynccontextmanager
@@ -991,10 +992,18 @@ def create_app() -> FastAPI:
                 logger.warning(f"VLM call failed for {vid} frame {kf_idx}: {e}")
                 answer = ""
 
+            _QA_VAGUE_RE = re.compile(
+                r"^\s*$|không\s+xác\s+định|unknown|undefined|n/?a|không\s+biết|"
+                r"không\s+thể\s+xác\s+định|không\s+trả\s+lời|không\s+có\s+đáp\s+án",
+                re.IGNORECASE,
+            )
+            is_vague = bool(_QA_VAGUE_RE.match(answer))
+
             out_results.append(QaSearchResultItem(
                 video_id=vid,
                 frame_idx=kf_idx,
                 answer=answer,
+                is_vague=is_vague,
                 final_score=score,
                 confidence=_display_confidence(r),
                 timestamp=r.get("timestamp", 0.0),
