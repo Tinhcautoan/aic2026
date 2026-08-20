@@ -5,6 +5,7 @@ Supports Milvus (Docker) or in-memory vector store.
 """
 
 import os
+import math
 import time
 import asyncio
 from contextlib import asynccontextmanager
@@ -198,6 +199,25 @@ def _warn_torchaudio_mismatch():
                 )
     except Exception:
         pass
+
+
+def _display_confidence(r: dict) -> float:
+    """Map a result's score fields to a 0-1 confidence for the UI.
+
+    The cross-encoder (bge-reranker) outputs RAW LOGITS — unbounded, and
+    often negative for weak matches — so the value must NOT be shown as a
+    "confidence".  Its sigmoid probability is the honest 0-1 confidence.
+    For dense-only results (cosine similarities) we clamp into [0, 1].
+    Ordering is unchanged: sigmoid is strictly monotonic.
+    """
+    p = r.get("cross_encoder_prob")
+    if p is not None:
+        return round(min(max(float(p), 0.0), 1.0), 4)
+    s = r.get("cross_encoder_score")
+    if s is not None:
+        return round(min(max(1.0 / (1.0 + math.exp(-float(s))), 0.0), 1.0), 4)
+    score = r.get("final_rerank_score", r.get("final_score", r.get("clip_score", 0.0)))
+    return round(min(max(float(score), 0.0), 1.0), 4)
 
 
 async def lifespan(app: FastAPI):
@@ -582,6 +602,7 @@ def create_app() -> FastAPI:
             "siglip2_score": round(r.get("siglip2_score", 0.0), 4),
             "bm25_score": round(r.get("bm25_score", 0.0), 4) if "bm25_score" in r else None,
             "cross_encoder_score": round(r.get("cross_encoder_score", 0.0), 4) if "cross_encoder_score" in r else None,
+            "confidence": _display_confidence(r),
             "final_score": round(r.get("final_rerank_score", r.get("final_score", r.get("clip_score", 0.0))), 4),
             "is_expanded_neighbor": r.get("is_expanded_neighbor", False),
         } for r in fr]
@@ -975,6 +996,7 @@ def create_app() -> FastAPI:
                 frame_idx=kf_idx,
                 answer=answer,
                 final_score=score,
+                confidence=_display_confidence(r),
                 timestamp=r.get("timestamp", 0.0),
                 clip_score=r.get("clip_score", 0.0),
                 siglip2_score=r.get("siglip2_score", 0.0),
@@ -1098,6 +1120,7 @@ def create_app() -> FastAPI:
                     frame_idx=frames[0] if frames else 0,
                     frames=frames,
                     score=a.total_score,
+                    confidence=round(min(max(1.0 / (1.0 + math.exp(-float(a.total_score))), 0.0), 1.0), 4),
                     timestamp=float(frames[0]) / 25.0 if frames else 0.0,
                     event_frames=[{"event": ef.event_text, "frame_idx": ef.frame_idx, "score": ef.score} for ef in a.event_frames],
                 ))

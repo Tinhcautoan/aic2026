@@ -19,6 +19,7 @@ class SearchResult(BaseModel):
     timestamp: float = Field(..., description="When in the video this picture appears (in seconds)")
     clip_score: float = Field(..., description="How well this picture matches what you searched (0=not at all, 1=perfect match!)")
     siglip2_score: float = Field(..., description="A second opinion on the match")
+    confidence: float = Field(default=0.0, description="0-1 confidence shown in the UI (sigmoid of the reranker logit)")
     final_score: float = Field(..., description="⭐ The FINAL score! Higher = better match!")
     metadata: Optional[dict] = Field(default=None, description="Extra stuff we found in the picture")
 
@@ -89,6 +90,7 @@ class QaSearchResultItem(BaseModel):
     frame_idx: int = 0
     answer: str = ""
     final_score: float = 0.0
+    confidence: float = 0.0
     timestamp: float = 0.0
     clip_score: float = 0.0
     siglip2_score: float = 0.0
@@ -113,6 +115,7 @@ class TrakeResultItem(BaseModel):
     frame_idx: int = 0
     frames: List[int] = Field(default_factory=list)
     score: float = 0.0
+    confidence: float = 0.0
     timestamp: float = 0.0
     event_frames: List[dict] = Field(default_factory=list)
 
