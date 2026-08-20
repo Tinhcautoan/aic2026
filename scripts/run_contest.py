@@ -18,6 +18,7 @@ API layer so the same models are shared.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import csv
 import os
 import sys
@@ -69,7 +70,7 @@ def _tkis_pipeline(
     return [r.line for r in ranked]
 
 
-def _qa_pipeline(
+async def _qa_pipeline(
     query_text: str,
     search_fn,
     embedding_fn,
@@ -96,7 +97,8 @@ def _qa_pipeline(
             delta_ratio=settings.DELTA_RATIO,
             frame_step=settings.FRAME_STEP,
         )
-        vlm_out = vlm_fn(parsed.question, sampled, vid, mode="qa")
+        vlm_frames = [{"video_id": sf.video_id, "frame_idx": sf.frame_idx, "score": sf.score} for sf in sampled]
+        vlm_out = await vlm_fn(parsed.question, vlm_frames, mode="qa")
         if vlm_out and vlm_out.get("answer"):
             for sf in sampled:
                 rows.append(SubmissionRow(
@@ -314,7 +316,7 @@ def main():
         if mode == TKIS:
             lines = _tkis_pipeline(query_text, search_fn, embedding_fn, args.max_rows)
         elif mode == QA:
-            lines = _qa_pipeline(query_text, search_fn, embedding_fn, vlm_fn, args.top_k, args.max_rows)
+            lines = asyncio.run(_qa_pipeline(query_text, search_fn, embedding_fn, vlm_fn, args.top_k, args.max_rows))
         elif mode == TRAKE:
             lines = _trake_pipeline(query_text, search_fn, embedding_fn, event_search_fn, args.trake_videos, args.max_rows)
         else:

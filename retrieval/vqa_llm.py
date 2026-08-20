@@ -354,6 +354,7 @@ async def answer_from_vlm(
     instruction: str | None = None,
     client: Optional[Any] = None,
     mode: str | None = None,
+    frame_loader: Optional[Callable] = None,
 ) -> Dict[str, Any]:
     """
     Answer a question using a self-hosted VLM via OpenAI-compatible API.
@@ -372,6 +373,17 @@ async def answer_from_vlm(
         dict with keys: answer, video_id, frame_idx (Q&A) or frames (TRAKE),
         source ("vlm"), confidence, latency_ms, model.
     """
+    if not frames:
+        return _vlm_empty()
+
+    loader = frame_loader or _default_frame_loader
+    for f in frames:
+        if f.get("jpeg") is None:
+            jpeg_data = await loader(f["video_id"], f["frame_idx"])
+            if jpeg_data:
+                f["jpeg"] = jpeg_data
+
+    frames = [f for f in frames if f.get("jpeg") is not None]
     if not frames:
         return _vlm_empty()
 
