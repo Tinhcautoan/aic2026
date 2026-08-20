@@ -598,13 +598,13 @@
 
                 if (taskType === 'QA') {
                     const ans = (r.answer || '').replace(/"/g, '""');
-                    out.push(videoId + ',' + frameIdx + ',"' + ans + '"');
+                    out.push(videoId + ', ' + frameIdx + ', "' + ans + '"');
                 } else if (taskType === 'TRAKE') {
                     // TRAKE: store video_id followed by frame indices if available
                     const frames = r.frames || r.aligned_frames || [frameIdx];
-                    out.push(videoId + ',' + frames.join(','));
+                    out.push(videoId + ', ' + frames.join(', '));
                 } else {
-                    out.push(videoId + ',' + frameIdx);
+                    out.push(videoId + ', ' + frameIdx);
                 }
             }
             while (out.length < 100) out.push('');

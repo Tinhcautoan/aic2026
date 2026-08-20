@@ -329,7 +329,7 @@
                     <button class="btn btn-secondary btn-sm" onclick="copyCsv()">Copy</button>
                     <button class="btn btn-secondary btn-sm" onclick="downloadCsv()">Download</button>
                 </div>
-                <textarea id="tkisCsvPreview" readonly placeholder="query_id,answer_001,...,answer_100" style="width:100%;min-height:80px;max-height:140px;resize:vertical;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.72rem;font-family:monospace;padding:8px;line-height:1.4"></textarea>
+                <textarea id="tkisCsvPreview" readonly placeholder="video_id, frame_idx" style="width:100%;min-height:80px;max-height:140px;resize:vertical;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.72rem;font-family:monospace;padding:8px;line-height:1.4"></textarea>
             </div>
         </div>
 
@@ -782,27 +782,31 @@
 
     /* ── CSV generation ─────────────────────────────────────── */
 
-    function buildTkisCsvRow(queryId, results) {
-        const cells = [queryId];
-        for (let i = 0; i < 100; i++) {
-            const r = results[i];
-            cells.push(r ? `"${r.video_id},${r.frame_idx}"` : '');
-        }
-        return cells.join(',');
+    function buildTkisCsvRow(results) {
+        return results
+            .filter(r => r && r.video_id)
+            .map(r => `${r.video_id}, ${r.frame_idx}`)
+            .join('\n');
     }
 
     function buildQaCsvRow(results) {
-        return results.map(r => {
-            const ans = (r.answer || '').replace(/"/g, '""');
-            return `"${r.video_id},${r.frame_idx}","${ans}"`;
-        }).join('\n');
+        return results
+            .filter(r => r && r.video_id)
+            .map(r => {
+                const ans = (r.answer || '').replace(/"/g, '""');
+                return `${r.video_id}, ${r.frame_idx}, "${ans}"`;
+            })
+            .join('\n');
     }
 
     function buildTrakeCsvRow(results) {
-        return results.map(r => {
-            const evt = (r.event || '').replace(/"/g, '""');
-            return `"${r.event_idx ?? ''}","${r.video_id},${r.frame_idx}","${evt}"`;
-        }).join('\n');
+        return results
+            .filter(r => r && r.video_id)
+            .map(r => {
+                const frames = r.frames || r.aligned_frames || [r.frame_idx];
+                return `${r.video_id}, ${frames.join(', ')}`;
+            })
+            .join('\n');
     }
 
     function updateCsvExport() {
@@ -816,13 +820,11 @@
         panel.classList.add('visible');
         let csv = '';
         if (currentMode === 'tkis') {
-            const qid = 'Q_0001';
-            csv = 'query_id,' + Array.from({ length: 100 }, (_, i) => 'answer_' + String(i + 1).padStart(3, '0')).join(',') + '\n';
-            csv += buildTkisCsvRow(qid, currentResults);
+            csv = buildTkisCsvRow(currentResults);
         } else if (currentMode === 'qa') {
-            csv = 'video_frame,answer\n' + buildQaCsvRow(currentResults);
+            csv = buildQaCsvRow(currentResults);
         } else {
-            csv = 'event_idx,video_frame,event\n' + buildTrakeCsvRow(currentResults);
+            csv = buildTrakeCsvRow(currentResults);
         }
         textarea.value = csv;
     }

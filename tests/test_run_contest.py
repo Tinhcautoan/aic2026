@@ -91,7 +91,7 @@ class TestEndToEndTrake(unittest.TestCase):
         ranked = rank_videos(alignments, max_rows=100)
         best = ranked[0]
         line = format_csv_line(best.video_id, frames=[ef.frame_idx for ef in best.event_frames])
-        self.assertEqual(line, "V1,100,300,500")
+        self.assertEqual(line, "V1, 100, 300, 500")
 
 
 class TestModeDetection(unittest.TestCase):

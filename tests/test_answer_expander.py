@@ -14,19 +14,19 @@ class TestFormatCsvLine(unittest.TestCase):
 
     def test_kis_line(self):
         line = format_csv_line(video_id="L01_V028", frame_idx=3450)
-        self.assertEqual(line, "L01_V028,3450")
+        self.assertEqual(line, "L01_V028, 3450")
 
     def test_qa_line_simple_answer(self):
         line = format_csv_line(video_id="L01_V028", frame_idx=3450, answer="5")
-        self.assertEqual(line, "L01_V028,3450,5")
+        self.assertEqual(line, 'L01_V028, 3450, "5"')
 
     def test_qa_line_answer_with_comma(self):
         line = format_csv_line(video_id="L01_V028", frame_idx=3450, answer="Năm người, gồm cả")
-        self.assertEqual(line, 'L01_V028,3450,"Năm người, gồm cả"')
+        self.assertEqual(line, 'L01_V028, 3450, "Năm người, gồm cả"')
 
     def test_trake_line(self):
         line = format_csv_line(video_id="L10_V001", frames=[1200, 1850, 2100, 2450])
-        self.assertEqual(line, "L10_V001,1200,1850,2100,2450")
+        self.assertEqual(line, "L10_V001, 1200, 1850, 2100, 2450")
 
 
 class TestExpandRows(unittest.TestCase):
