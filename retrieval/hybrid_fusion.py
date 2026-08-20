@@ -291,7 +291,10 @@ class HybridFusionPipeline:
         if run_cross_encoder:
             reranked = self.cross_encoder.rerank(query, top_for_rerank, top_k=cross_encoder_top_k)
             for c in reranked:
-                c["final_rerank_score"] = c["cross_encoder_score"]
+                c["final_rerank_score"] = c.get(
+                    "cross_encoder_prob",
+                    1.0 / (1.0 + np.exp(-c["cross_encoder_score"])),
+                )
             remaining = fused[fusion_top_k:]
             for c in remaining:
                 # Push everything the cross-encoder didn't see behind the
