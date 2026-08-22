@@ -41,8 +41,8 @@ class Settings(BaseSettings):
     TULIP_CHECKPOINT: str = ""  # Optional: path to downloaded TULIP fine-tuned weights
     USE_TULIP: bool = True  # Set to True to use TULIP instead of CLIP
     # TULIP/CLIP ViT-L-14 produces 768-dim features in the open_clip model used here.
-    # SigLIP2 is projected down to the same unified dimension to keep both fields compatible
-    # with the Milvus collection schema and avoid dimension-mismatch insert errors.
+    # SigLIP2 is stored at its NATIVE 1152-dim in a separate Milvus vector field
+    # (no projection), so no semantic structure is lost.
     EMBEDDING_DIM_CLIP: int = 768
     EMBEDDING_DIM_SIGLIP2: int = 1152
     UNIFIED_DIM: int = 768

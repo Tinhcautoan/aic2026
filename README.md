@@ -176,7 +176,7 @@ AIC/
 │
 ├── embedding/                      # Multimodal Embedding Engine
 │   ├── clip_encoder.py             # CLIP ViT-L-14 (1024-dim)
-│   ├── siglip2_encoder.py          # SigLIP2 1152→1024 projection
+│   ├── siglip2_encoder.py          # SigLIP2 native 1152-dim (no projection)
 │   └── hybrid_engine.py            # Async dual-encoder pipeline
 │
 ├── retrieval/                      # Vector storage & reranking

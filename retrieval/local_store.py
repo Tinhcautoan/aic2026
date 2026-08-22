@@ -16,6 +16,7 @@ class LocalVectorStore:
 
     def __init__(self):
         self.dim = settings.UNIFIED_DIM
+        self.siglip2_dim = settings.EMBEDDING_DIM_SIGLIP2
         self._ids = []
         self._video_ids = []
         self._frame_indices = []
@@ -55,13 +56,14 @@ class LocalVectorStore:
 
     def _get_embedding_matrix(self, field: str = "clip") -> np.ndarray:
         """Build the full embedding matrix for search."""
+        dim = self.dim if field == "clip" else self.siglip2_dim
         if field == "clip":
             if not self._clip_embeddings:
-                return np.array([]).reshape(0, self.dim)
+                return np.array([]).reshape(0, dim)
             return np.vstack(self._clip_embeddings).astype(np.float32)
         else:
             if not self._siglip2_embeddings:
-                return np.array([]).reshape(0, self.dim)
+                return np.array([]).reshape(0, dim)
             return np.vstack(self._siglip2_embeddings).astype(np.float32)
 
     def _cosine_search(self, query: np.ndarray, emb_matrix: np.ndarray, top_k: int) -> List[dict]:

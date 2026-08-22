@@ -33,7 +33,8 @@ class MilvusVectorStore:
 
     def __init__(self):
         self.collection_name = settings.MILVUS_COLLECTION_NAME
-        self.dim = settings.UNIFIED_DIM
+        self.dim = settings.UNIFIED_DIM          # CLIP/TULIP dimension (768)
+        self.siglip2_dim = settings.EMBEDDING_DIM_SIGLIP2  # native SigLIP2 (1152)
         self.client = None
 
         self._init_client()
@@ -51,11 +52,11 @@ class MilvusVectorStore:
     def _init_collection(self):
         """Create the collection if missing; recreate on dimension mismatch."""
         if self.client.has_collection(self.collection_name):
-            existing_dim = self._get_existing_dim()
-            if existing_dim and existing_dim != self.dim:
+            mismatch = self._schema_dim_mismatch()
+            if mismatch:
                 logger.warning(
-                    f"Collection dimension mismatch (stored {existing_dim}, "
-                    f"expected {self.dim}); recreating collection..."
+                    f"Collection dimension mismatch ({mismatch}); "
+                    f"recreating collection — embeddings must be re-ingested..."
                 )
                 self.client.drop_collection(self.collection_name)
                 self._create_collection()
@@ -74,13 +75,20 @@ class MilvusVectorStore:
         # "call load() before search". Load it into memory here.
         self.client.load_collection(self.collection_name)
 
-    def _get_existing_dim(self) -> Optional[int]:
+    def _schema_dim_mismatch(self) -> Optional[str]:
+        """Return a description of any vector-field dim mismatch vs expected, else None.
+
+        Checks BOTH vector fields: clip_embedding must be ``self.dim`` (768) and
+        siglip2_embedding must be ``self.siglip2_dim`` (native 1152).
+        """
+        expected = {"clip_embedding": self.dim, "siglip2_embedding": self.siglip2_dim}
         try:
             desc = self.client.describe_collection(self.collection_name)
             for f in desc.get("fields", []):
+                name = f.get("name")
                 dim = (f.get("params") or {}).get("dim")
-                if dim:
-                    return int(dim)
+                if name in expected and dim and int(dim) != expected[name]:
+                    return f"{name}={dim} (expected {expected[name]})"
         except Exception as e:
             logger.warning(f"Could not inspect collection schema: {e}")
         return None
@@ -109,7 +117,7 @@ class MilvusVectorStore:
         schema.add_field("frame_idx", DataType.INT64)
         schema.add_field("timestamp", DataType.FLOAT)
         schema.add_field("clip_embedding", DataType.FLOAT_VECTOR, dim=self.dim)
-        schema.add_field("siglip2_embedding", DataType.FLOAT_VECTOR, dim=self.dim)
+        schema.add_field("siglip2_embedding", DataType.FLOAT_VECTOR, dim=self.siglip2_dim)
         schema.add_field("metadata", DataType.JSON)
 
         index_params = self._build_index_params(
@@ -164,6 +172,20 @@ class MilvusVectorStore:
         n = len(frame_indices)
         if n == 0:
             return []
+        # Dimension sanity check — gives a clear error instead of a cryptic
+        # Milvus insert failure (e.g. 768-dim siglip2 from an old pickle).
+        clip_arr = np.asarray(clip_embeddings, dtype=np.float32)
+        sig_arr = np.asarray(siglip2_embeddings, dtype=np.float32)
+        if clip_arr.ndim == 2 and clip_arr.shape[1] != self.dim:
+            raise ValueError(
+                f"clip_embedding dim {clip_arr.shape[1]} != schema dim {self.dim}"
+            )
+        if sig_arr.ndim == 2 and sig_arr.shape[1] != self.siglip2_dim:
+            raise ValueError(
+                f"siglip2_embedding dim {sig_arr.shape[1]} != schema dim {self.siglip2_dim} "
+                f"(expected NATIVE 1152 — re-embed with the current encoder; "
+                f"old 768-dim projections cannot be stored)"
+            )
         if metadata_list is None:
             metadata_list = [{} for _ in range(n)]
 
