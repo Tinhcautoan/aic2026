@@ -276,13 +276,18 @@ class KeyframeExtractor:
         )
         model_name = settings.TULIP_MODEL_NAME if settings.USE_TULIP else settings.CLIP_MODEL_NAME
         pretrained = settings.TULIP_PRETRAINED if settings.USE_TULIP else settings.CLIP_PRETRAINED
+        # Load on CPU first, then half()+move to GPU -- loading fp32 straight
+        # onto a GPU that's already holding other models (PE-Core, SigLIP2)
+        # can exceed free VRAM even for a "small" model once CUDA context/
+        # allocator overhead is added; this keeps the GPU transfer at fp16 size.
         model, _, preprocess = open_clip.create_model_and_transforms(
             model_name=model_name,
             pretrained=pretrained,
-            device=self._device,
+            device="cpu",
         )
         if settings.USE_FP16 and "cuda" in self._device:
             model = model.half()
+        model = model.to(self._device)
         model.eval()
         self._model = model
         self._preprocess_fn = preprocess

@@ -5,6 +5,16 @@ Runs the FastAPI app directly. Milvus Lite is file-based (milvus.db), so no
 Docker daemon, containers, or port 19530 are required.
 """
 
+import os
+from pathlib import Path
+
+# Must be set before torch/open_clip/transformers/huggingface_hub are
+# imported anywhere downstream -- they read HF_HOME once to compute cache
+# paths. Model weights (PE-Core, SigLIP2, translator, cross-encoder) add up
+# to 15-20GB; defaulting into the project directory avoids silently filling
+# a small system drive. Set HF_HOME yourself (env var or .env) to override.
+os.environ.setdefault("HF_HOME", str(Path(__file__).parent / "hf-cache"))
+
 
 def print_instructions():
     print()

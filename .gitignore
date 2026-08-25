@@ -5,6 +5,24 @@ data/persistent_store/
 data/cache/
 data/media-info-aic25-b1
 
+# Root-level video/keyframe/embedding dumps (local dev data, regenerate via
+# scripts/setup_local.py or export_embeddings_from_keyframes.py)
+video/
+keyframes/
+embeddings_pecore.pkl
+persistent_store-*/
+
+# HF model cache (auto-downloads on first run, see run.py)
+hf-cache/
+
+# Already-applied one-off patch bundle -- content is merged into the
+# codebase, kept out of git so it doesn't look like a second copy of it
+aicv5-baseline-fix/
+aicv5-baseline-fix.zip
+
+# Local Claude Code tool config
+.claude/
+
 # Local Milvus Lite database (runtime artifact, regenerable via ingestion)
 milvus.db/
 

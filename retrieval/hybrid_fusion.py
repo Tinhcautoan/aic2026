@@ -1,38 +1,56 @@
 """
-Full Textual KIS Retrieval Funnel.
+Full Textual KIS retrieval funnel.
 
-    Dense Vector Search (TULIP+SigLIP2) -> BM25 Metadata Search
-    -> Hybrid Fusion (RRF) -> Cross-Encoder Re-ranker
-    -> Frame Neighbor Expansion (+-5, +-10 frames)
+    Stage 1  Dense vector search (CLIP/TULIP + SigLIP2) -> dense fusion
+    Stage 2  BM25 metadata search
+    Stage 3  RRF fusion of dense vs sparse
+    Stage 4  Cross-encoder re-rank
+    Stage 5  Frame neighbour expansion
+    Stage 6  Deduplication
+    Stage 7  Banding, confidence, final ordering        <-- new
 
-This module is the single entry point the API should call for a KIS text
-query. It does NOT own the models — pass in already-initialized components
-so they're loaded once at server startup, not per-request.
+THE SCORING BUG THIS FILE USED TO HAVE
+--------------------------------------
+`final_rerank_score` was written by four different branches on four
+incompatible scales:
 
-Scoring strategy notes (matches the AIC scoring rule:
-Final = (R@1+R@5+R@20+R@50+R@100)/5):
-  - Stage 1-3 optimize for RECALL: cast a wide net (dense_top_k + sparse_top_k
-    candidates), so the true answer is *somewhere* in the pool before we
-    spend the expensive cross-encoder pass.
-  - Stage 4 optimizes for PRECISION AT RANK 1: the cross-encoder only runs
-    on the much smaller `fusion_top_k` survivors, re-ordering them so the
-    single best match lands at position 1.
-  - Stage 5 hedges against off-by-a-few-frames ground truth: expands each
-    surviving top result to its +-5/+-10 frame neighbors so the exact
-    annotated frame is very likely present somewhere in the submitted
-    top-100, even if the keyframe extractor picked a slightly different
-    frame than the one BTC's ground truth points to.
+    cross-encoder ran      c["final_rerank_score"] = cross_encoder_prob      (0, 1)
+    cross-encoder skipped  c["final_rerank_score"] = rrf_fusion_score        <= 0.0328
+    below fusion_top_k     c["final_rerank_score"] = rrf_fusion_score - 1e6  ~ -1e6
+    no BM25 hits at all    rrf_fusion_score = final_score                    [0, 1]
+
+Raw RRF caps at 2/(k+1) = 2/61 = 0.0328 with k=60. The cross-encoder only
+runs when a candidate carries OCR/ASR/object text, which most purely visual
+frames do not. So on the common path the number the UI displayed as
+"confidence" could not exceed 0.033, and candidates past the rerank cutoff
+displayed as roughly minus one million. That is the entire cause of
+"confidence is always extremely low". Nothing was wrong with the models.
+
+Stage 7 now separates the two concepts:
+
+    final_score   ordering only, in [0, 1], banded per tier so a
+                  cross-encoded hit always outranks a merely-fused one
+    confidence    calibrated, in [0, 1], derived from the candidate's
+                  separation from the rest of this query's pool, using the
+                  dense logits every candidate has -- so it no longer
+                  depends on whether the cross-encoder happened to fire
+
+`final_rerank_score` is kept as an alias of `final_score` so existing
+callers (dedup, the API, the frontend) keep working.
 """
 
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 import numpy as np
 from loguru import logger
 
 from config import settings
-from .reranker import HybridReranker
+from . import scoring
 from .bm25_search import BM25Index
 from .cross_encoder_reranker import CrossEncoderReranker
+from .reranker import HybridReranker
 from .result_dedup import deduplicate_results
+from .scoring import TIER_CROSS_ENCODED, TIER_EXPANDED, TIER_FUSED
 
 
 def _frame_key(c: dict) -> str:
@@ -40,17 +58,13 @@ def _frame_key(c: dict) -> str:
 
 
 def _decay_score(score: float, decay: float) -> float:
-    """
-    Multiplicatively worsen a score by `decay` (0 < decay < 1), so a Stage-5
-    expanded neighbor always ranks strictly below the real result it came
-    from — regardless of the score's sign.
+    """Worsen a score multiplicatively.
 
-    Naively doing `score * decay` breaks for negative scores (e.g. raw
-    cross-encoder logits, or z-score-normalized fusion scores): multiplying
-    a negative number by something <1 makes it LESS negative, i.e. BETTER,
-    which inverts the intended guarantee and lets synthetic neighbors
-    outrank genuine results. Dividing negative scores by `decay` instead
-    correctly makes them more negative (worse).
+    Scores are non-negative after Stage 7 banding, so this is a plain
+    multiply. The old sign-dependent branch existed because scores could be
+    negative (z-scored fusion, raw cross-encoder logits); that can no longer
+    happen, but the guard is cheap and keeps the function safe if a caller
+    hands it a raw logit.
     """
     return score * decay if score >= 0 else score / decay
 
@@ -59,22 +73,19 @@ def _merge_expansion_preserving_rank(
     base_results: List[dict],
     expanded_neighbors: List[dict],
 ) -> List[dict]:
-    """
-    Insert synthetic neighbors immediately after their source hit without
-    letting them outrank higher-scoring real results above the source.
-    """
+    """Insert each synthetic neighbour directly after the hit it came from,
+    without letting it jump above a higher-scoring real result."""
     neighbor_by_source: Dict[str, List[dict]] = {}
     real_keys = {_frame_key(r) for r in base_results}
 
     for n in expanded_neighbors:
         if not n.get("is_expanded_neighbor"):
             continue
-        key = _frame_key(n)
-        if key in real_keys:
+        if _frame_key(n) in real_keys:
             continue
-        src_key = f"{n['video_id']}_{n.get('expanded_from_frame')}"
         if n.get("expanded_from_frame") is None:
             continue
+        src_key = f"{n['video_id']}_{n['expanded_from_frame']}"
         neighbor_by_source.setdefault(src_key, []).append(n)
 
     for neighbors in neighbor_by_source.values():
@@ -85,18 +96,15 @@ def _merge_expansion_preserving_rank(
 
     merged: List[dict] = []
     inserted_keys: set = set()
-
     for r in base_results:
         merged.append(r)
         inserted_keys.add(_frame_key(r))
-        src_key = f"{r['video_id']}_{r['frame_idx']}"
-        for n in neighbor_by_source.get(src_key, []):
+        for n in neighbor_by_source.get(f"{r['video_id']}_{r['frame_idx']}", []):
             nkey = _frame_key(n)
             if nkey in inserted_keys:
                 continue
             merged.append(n)
             inserted_keys.add(nkey)
-
     return merged
 
 
@@ -108,32 +116,33 @@ class HybridFusionPipeline:
         dense_reranker: Optional[HybridReranker] = None,
         cross_encoder: Optional[CrossEncoderReranker] = None,
     ):
-        """
-        vector_store: MilvusVectorStore or LocalVectorStore (must implement
-            .hybrid_search(clip_query, siglip2_query, top_k, expr))
-        bm25_index: BM25Index, optional. If None or empty, pipeline falls
-            back to dense-only retrieval — never errors out.
-        dense_reranker: HybridReranker (RRF+CombMNZ over CLIP/TULIP+SigLIP2).
-            Created if not passed in.
-        cross_encoder: CrossEncoderReranker, optional. If None, Stage 4 is
-            skipped and fusion-ranked order is kept — useful for a fast
-            "no cross-encoder" mode during early dev/testing on Kaggle.
-        """
         self.vector_store = vector_store
         self.bm25_index = bm25_index
         self.dense_reranker = dense_reranker or HybridReranker()
         self.cross_encoder = cross_encoder
+        self.last_audit: Optional[scoring.ScoreAudit] = None
 
-    # ------------------------------------------------------------------ #
-    # Stage 3: second-level RRF fusion between dense and sparse result sets
     # ------------------------------------------------------------------ #
 
     def _rrf_merge_dense_sparse(
         self,
         dense_candidates: List[dict],
         sparse_candidates: List[dict],
-        k: int = 60,
+        k: Optional[int] = None,
     ) -> List[dict]:
+        """RRF across two retrievers whose scores are not comparable.
+
+        RRF is the right tool here precisely because dense cosine and BM25
+        term weights live on unrelated scales. It is the wrong tool inside
+        Stage 1, where both branches are cosines -- that fusion is handled by
+        HybridReranker instead.
+
+        The raw RRF value is tiny by construction (<= 2/(k+1)). It is stored
+        as `rrf_fusion_score` for diagnostics and used only for ordering;
+        Stage 7 is what turns ordering into a displayable number.
+        """
+        k = settings.RRF_K if k is None else k
+
         dense_sorted = sorted(dense_candidates, key=lambda c: c.get("final_score", 0.0), reverse=True)
         sparse_sorted = sorted(sparse_candidates, key=lambda c: c.get("bm25_score", 0.0), reverse=True)
 
@@ -163,8 +172,6 @@ class HybridFusionPipeline:
         return results
 
     # ------------------------------------------------------------------ #
-    # Stage 5: frame neighbor expansion
-    # ------------------------------------------------------------------ #
 
     def _expand_neighbors(
         self,
@@ -179,7 +186,7 @@ class HybridFusionPipeline:
         neighbors_only: List[dict] = []
 
         for r in results:
-            base_score = r.get("final_rerank_score", r.get("rrf_fusion_score", 0.0))
+            base = r.get("_raw_score", r.get("final_rerank_score", r.get("rrf_fusion_score", 0.0)))
             for w in windows:
                 for sign in (-1, 1):
                     neighbor_idx = r["frame_idx"] + sign * w
@@ -187,11 +194,12 @@ class HybridFusionPipeline:
                         continue
                     key = f"{r['video_id']}_{neighbor_idx}"
                     if key in expanded:
-                        continue  # real retrieved result takes priority over a synthetic neighbor
+                        continue
                     neighbor = {
                         **r,
                         "frame_idx": neighbor_idx,
-                        "final_rerank_score": _decay_score(base_score, decay),
+                        "_raw_score": _decay_score(float(base), decay),
+                        "tier": TIER_EXPANDED,
                         "is_expanded_neighbor": True,
                         "expanded_from_frame": r["frame_idx"],
                     }
@@ -200,13 +208,10 @@ class HybridFusionPipeline:
 
         if return_neighbors_only:
             return neighbors_only
-
         out = list(expanded.values())
-        out.sort(key=lambda c: c.get("final_rerank_score", c.get("rrf_fusion_score", 0.0)), reverse=True)
+        out.sort(key=lambda c: c.get("_raw_score", 0.0), reverse=True)
         return out
 
-    # ------------------------------------------------------------------ #
-    # Public entry point
     # ------------------------------------------------------------------ #
 
     def search(
@@ -225,17 +230,19 @@ class HybridFusionPipeline:
         expand_neighbors: bool = True,
         dedup: Optional[bool] = None,
     ) -> List[dict]:
-        """
-        Args mirror the 5 funnel stages. All top-k defaults come from
-        settings so you can tune them centrally without touching call sites.
+        """Run the funnel.
 
-        Returns a list of candidate dicts, best first, each carrying:
-          clip_score, siglip2_score, final_score        (Stage 1, dense fusion)
-          bm25_score                                     (Stage 2, if matched)
-          rrf_fusion_score                               (Stage 3)
-          cross_encoder_score / cross_encoder_prob       (Stage 4, if run)
-          final_rerank_score                             (what it's sorted by)
-          is_expanded_neighbor, expanded_from_frame       (Stage 5, if synthetic)
+        Every returned candidate carries:
+            clip_score, siglip2_score        raw cosines (Stage 1)
+            dense_logit                      calibrated, model-native (Stage 1)
+            final_score (dense fusion)       [0, 1]
+            bm25_score                       if the sparse branch matched
+            rrf_fusion_score                 diagnostics (Stage 3)
+            cross_encoder_score / _prob      if Stage 4 ran
+            tier                             0 cross-encoded, 1 fused, 2 synthetic
+            final_score / final_rerank_score ordering key, [0, 1]
+            confidence                       calibrated, [0, 1]
+            confidence_basis                 which signal confidence came from
         """
         if dedup is None:
             dedup = settings.RESULT_DEDUP_ENABLED
@@ -245,27 +252,25 @@ class HybridFusionPipeline:
         cross_encoder_top_k = cross_encoder_top_k or settings.CROSS_ENCODER_TOP_K
         final_top_k = final_top_k or settings.FINAL_TOP_K
 
-        # ---- Stage 1: Dense retrieval + first-level RRF/CombMNZ fusion ----
+        # ---- Stage 1: dense retrieval + dense fusion ----
         dense_candidates = self.vector_store.hybrid_search(
             clip_query=clip_query_emb, siglip2_query=siglip2_query_emb,
             top_k=dense_top_k, expr=expr,
         )
         dense_candidates = self.dense_reranker.rerank(dense_candidates, top_k=dense_top_k)
 
-        # ---- Stage 2: Sparse BM25 retrieval ----
+        # ---- Stage 2: sparse BM25 ----
         sparse_candidates: List[dict] = []
         if use_bm25 and self.bm25_index is not None and self.bm25_index.size > 0:
             sparse_candidates = self.bm25_index.search(query, top_k=sparse_top_k)
             if expr and sparse_candidates:
-                # BM25Index has no expr filtering built in; apply video_filter here.
-                # expr is expected in the form 'video_id == "xyz"' set by the API layer.
                 import re
                 m = re.search(r'video_id\s*==\s*"([^"]+)"', expr)
                 if m:
                     vid = m.group(1)
                     sparse_candidates = [c for c in sparse_candidates if c["video_id"] == vid]
 
-        # ---- Stage 3: Second-level RRF fusion (dense vs sparse) ----
+        # ---- Stage 3: RRF across dense and sparse ----
         if sparse_candidates:
             fused = self._rrf_merge_dense_sparse(dense_candidates, sparse_candidates)
         else:
@@ -275,38 +280,40 @@ class HybridFusionPipeline:
 
         top_for_rerank = fused[:fusion_top_k]
 
-        # ---- Stage 4: Cross-Encoder re-ranking (maximize R@1) ----
-        run_cross_encoder = (
-            use_cross_encoder
-            and self.cross_encoder is not None
-            and bool(top_for_rerank)
+        # ---- Stage 4: cross-encoder ----
+        has_text = bool(top_for_rerank) and self.cross_encoder is not None \
             and self.cross_encoder.has_any_text(top_for_rerank)
-        )
+        run_cross_encoder = use_cross_encoder and self.cross_encoder is not None and has_text
+
         if use_cross_encoder and self.cross_encoder is not None and top_for_rerank and not run_cross_encoder:
-            logger.debug(
-                "Cross-Encoder stage skipped: no candidate in this batch has "
-                "OCR/ASR/object text (metadata is empty). Populate per-frame "
-                "metadata during ingestion for this stage to add value."
+            logger.info(
+                f"Stage 4 skipped: none of {len(top_for_rerank)} candidates carry OCR/ASR/object "
+                f"text. Ranking falls back to dense+sparse fusion. If this is frequent, the "
+                f"cross-encoder is contributing nothing and per-frame metadata needs populating."
             )
+
         if run_cross_encoder:
             reranked = self.cross_encoder.rerank(query, top_for_rerank, top_k=cross_encoder_top_k)
             for c in reranked:
-                c["final_rerank_score"] = c.get(
-                    "cross_encoder_prob",
-                    1.0 / (1.0 + np.exp(-c["cross_encoder_score"])),
+                c["tier"] = TIER_CROSS_ENCODED
+                c["_raw_score"] = float(
+                    c.get("cross_encoder_prob", 1.0 / (1.0 + np.exp(-c["cross_encoder_score"])))
                 )
             remaining = fused[fusion_top_k:]
             for c in remaining:
-                # Push everything the cross-encoder didn't see behind the
-                # reranked slice, but preserve relative fusion order.
-                c["final_rerank_score"] = c.get("rrf_fusion_score", 0.0) - 1e6
-            final_ranked = reranked + remaining
+                # Previously: rrf_fusion_score - 1e6. Tiers make that hack
+                # unnecessary; a lower tier already sorts below, and the
+                # score stays inside [0, 1] so nothing displays as -1e6.
+                c["tier"] = TIER_FUSED
+                c["_raw_score"] = float(c.get("rrf_fusion_score", 0.0))
+            final_ranked = list(reranked) + list(remaining)
         else:
             final_ranked = fused
             for c in final_ranked:
-                c["final_rerank_score"] = c.get("rrf_fusion_score", 0.0)
+                c["tier"] = TIER_FUSED
+                c["_raw_score"] = float(c.get("rrf_fusion_score", 0.0))
 
-        # ---- Stage 5: Frame neighbor expansion ----
+        # ---- Stage 5: frame neighbour expansion ----
         should_expand = expand_neighbors and (
             settings.FRAME_EXPANSION_FOR_UI or final_top_k > 20
         )
@@ -315,8 +322,30 @@ class HybridFusionPipeline:
             neighbors = self._expand_neighbors(sources, return_neighbors_only=True)
             final_ranked = _merge_expansion_preserving_rank(final_ranked[:final_top_k], neighbors)
 
-        # ---- Stage 6: Result deduplication ----
+        # ---- Stage 7 (part 1): band scores and attach confidence ----
+        # Done before dedup so dedup sees a coherent, non-negative ordering.
+        final_ranked = scoring.finalize(final_ranked, score_field="final_score")
+        for c in final_ranked:
+            c["final_rerank_score"] = c["final_score"]   # backwards-compatible alias
+
+        # ---- Stage 6: deduplication ----
         if dedup:
             final_ranked = deduplicate_results(final_ranked, top_k=final_top_k)
 
-        return final_ranked[:final_top_k]
+        out = final_ranked[:final_top_k]
+        self.last_audit = scoring.audit(out)
+        if self.last_audit.flat_pool:
+            logger.warning(
+                f"Flat confidence pool for query {query!r}: the retriever did not "
+                f"discriminate between candidates. conf={self.last_audit.conf_max:.3f}"
+            )
+        return out
+
+    # ------------------------------------------------------------------ #
+
+    def diagnostics(self) -> dict:
+        """Everything needed to explain the last query's scores."""
+        d = {"audit": self.last_audit.as_dict() if self.last_audit else None}
+        if self.cross_encoder is not None and hasattr(self.cross_encoder, "stats_summary"):
+            d["cross_encoder"] = self.cross_encoder.stats_summary()
+        return d

@@ -22,7 +22,7 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(settings.CLIP_MODEL_NAME, "ViT-L-14")
         self.assertEqual(settings.RRF_K, 60)
         self.assertEqual(settings.FUSION_ALPHA, 0.5)
-        self.assertTrue(settings.UNIFIED_DIM == 768)
+        self.assertTrue(settings.UNIFIED_DIM == 1280)
         print("  ✅ Config loaded correctly")
 
     def test_settings_types(self):

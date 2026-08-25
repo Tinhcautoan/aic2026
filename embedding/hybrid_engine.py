@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from .clip_encoder import CLIPEncoder
 from .tulip_encoder import TULIPEncoder
+from .pecore_encoder import PECoreEncoder
 from .siglip2_encoder import SigLIP2Encoder
 from config import settings
 
@@ -49,7 +50,10 @@ class HybridEmbeddingEngine:
         logger.info("Initializing Hybrid Embedding Engine...")
         start_time = time.time()
 
-        if settings.USE_TULIP:
+        if settings.USE_PECORE:
+            logger.info("Using PE-Core encoder instead of CLIP")
+            self.clip_encoder = PECoreEncoder(device=self.device)
+        elif settings.USE_TULIP:
             logger.info("Using TULIP encoder instead of CLIP")
             self.clip_encoder = TULIPEncoder(device=self.device)
         else:

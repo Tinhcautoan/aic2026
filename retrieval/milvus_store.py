@@ -33,7 +33,9 @@ class MilvusVectorStore:
 
     def __init__(self):
         self.collection_name = settings.MILVUS_COLLECTION_NAME
-        self.dim = settings.UNIFIED_DIM
+        self.clip_dim = settings.UNIFIED_DIM
+        self.siglip2_dim = settings.EMBEDDING_DIM_SIGLIP2_STORED
+        self.dim = self.clip_dim  # kept so existing code that references it doesn't break
         self.client = None
 
         self._init_client()
@@ -51,11 +53,20 @@ class MilvusVectorStore:
     def _init_collection(self):
         """Create the collection if missing; recreate on dimension mismatch."""
         if self.client.has_collection(self.collection_name):
-            existing_dim = self._get_existing_dim()
-            if existing_dim and existing_dim != self.dim:
+            existing_dims = self._get_existing_dim()
+            expected_dims = {
+                "clip_embedding": self.clip_dim,
+                "siglip2_embedding": self.siglip2_dim,
+            }
+            mismatched = {
+                field: (existing_dims[field], expected)
+                for field, expected in expected_dims.items()
+                if field in existing_dims and existing_dims[field] != expected
+            }
+            if mismatched:
                 logger.warning(
-                    f"Collection dimension mismatch (stored {existing_dim}, "
-                    f"expected {self.dim}); recreating collection..."
+                    f"Collection '{self.collection_name}' has dimension mismatch "
+                    f"{mismatched} (field: (stored, expected)); dropping and recreating..."
                 )
                 self.client.drop_collection(self.collection_name)
                 self._create_collection()
@@ -74,16 +85,18 @@ class MilvusVectorStore:
         # "call load() before search". Load it into memory here.
         self.client.load_collection(self.collection_name)
 
-    def _get_existing_dim(self) -> Optional[int]:
+    def _get_existing_dim(self) -> dict:
+        """Return {field_name: dim} for every vector field in the existing collection."""
+        dims = {}
         try:
             desc = self.client.describe_collection(self.collection_name)
             for f in desc.get("fields", []):
                 dim = (f.get("params") or {}).get("dim")
                 if dim:
-                    return int(dim)
+                    dims[f.get("name")] = int(dim)
         except Exception as e:
             logger.warning(f"Could not inspect collection schema: {e}")
-        return None
+        return dims
 
     def _build_index_params(self, fields, index_type):
         ip = self.client.prepare_index_params()
@@ -108,8 +121,8 @@ class MilvusVectorStore:
         schema.add_field("video_id", DataType.VARCHAR, max_length=256)
         schema.add_field("frame_idx", DataType.INT64)
         schema.add_field("timestamp", DataType.FLOAT)
-        schema.add_field("clip_embedding", DataType.FLOAT_VECTOR, dim=self.dim)
-        schema.add_field("siglip2_embedding", DataType.FLOAT_VECTOR, dim=self.dim)
+        schema.add_field("clip_embedding", DataType.FLOAT_VECTOR, dim=self.clip_dim)
+        schema.add_field("siglip2_embedding", DataType.FLOAT_VECTOR, dim=self.siglip2_dim)
         schema.add_field("metadata", DataType.JSON)
 
         index_params = self._build_index_params(

@@ -1,9 +1,21 @@
 """
-Stage 6: deduplicate search results for UI diversity.
+Stage 6: deduplicate results.
 
-Applies temporal NMS (same video, nearby frames) and optional scene bucketing
-(same video, nearby timestamps) while preserving score order. Backfills from
-the original pool when strict dedup yields fewer than top_k results.
+FIX
+---
+Stage 5 creates synthetic neighbours at +-FRAME_EXPANSION_WINDOWS (default
++-5 frames) to hedge against the annotated frame being a few frames off from
+the keyframe we indexed. Stage 6 then removed every frame within
+RESULT_DEDUP_MIN_FRAME_GAP (default 15) of an already-selected hit. Since
+the source hit always scores higher and is selected first, every neighbour
+failed temporal NMS and was dropped. The 8-second scene bucket removed the
+rest. Stage 5 was, in practice, a no-op.
+
+Neighbours are now exempt from both NMS and scene bucketing: they exist to
+cover frame indices, not to add visual variety, so the diversity rules that
+apply to real hits do not apply to them. They also never claim a scene
+bucket, which would otherwise let a synthetic frame block a genuine hit
+later in the list.
 """
 
 from __future__ import annotations
@@ -23,12 +35,7 @@ def _scene_bucket(video_id: str, timestamp: float, window_sec: float) -> tuple:
     return (video_id, int(timestamp // window_sec))
 
 
-def _passes_temporal_nms(
-    candidate: dict,
-    selected: List[dict],
-    min_frame_gap: int,
-) -> bool:
-    """Return False if candidate is too close in frame index to an already-selected hit."""
+def _passes_temporal_nms(candidate: dict, selected: List[dict], min_frame_gap: int) -> bool:
     vid = candidate["video_id"]
     frame_idx = candidate["frame_idx"]
     for s in selected:
@@ -39,12 +46,7 @@ def _passes_temporal_nms(
     return True
 
 
-def _passes_scene_bucket(
-    candidate: dict,
-    scene_buckets: set,
-    scene_window_sec: float,
-) -> bool:
-    """Return False if this video/scene bucket was already used."""
+def _passes_scene_bucket(candidate: dict, scene_buckets: set, scene_window_sec: float) -> bool:
     if scene_window_sec <= 0:
         return True
     bucket = _scene_bucket(candidate["video_id"], candidate.get("timestamp", 0.0), scene_window_sec)
@@ -57,58 +59,60 @@ def deduplicate_results(
     min_frame_gap: Optional[int] = None,
     scene_window_sec: Optional[float] = None,
     use_scene_bucket: bool = True,
+    exempt_neighbors: Optional[bool] = None,
 ) -> List[dict]:
-    """
-    Remove near-duplicate frames while keeping the highest-scoring representative.
+    """Drop near-duplicate frames, keeping the highest-scoring representative.
 
     Args:
-        results: Ranked candidates (best first).
-        top_k: Target number of results to return.
-        min_frame_gap: Minimum frame distance within the same video.
-        scene_window_sec: Max one result per (video, timestamp bucket).
-        use_scene_bucket: Apply scene bucketing when True.
-
-    Returns:
-        Deduplicated list, length <= top_k (backfilled from pool if needed).
+        exempt_neighbors: when True, candidates flagged `is_expanded_neighbor`
+            bypass NMS and scene bucketing. Defaults to
+            settings.RESULT_DEDUP_EXEMPT_NEIGHBORS.
     """
     if not results or top_k <= 0:
         return []
 
-    min_frame_gap = (
-        settings.RESULT_DEDUP_MIN_FRAME_GAP if min_frame_gap is None else min_frame_gap
-    )
+    min_frame_gap = settings.RESULT_DEDUP_MIN_FRAME_GAP if min_frame_gap is None else min_frame_gap
     scene_window_sec = (
         settings.RESULT_DEDUP_SCENE_WINDOW_SEC if scene_window_sec is None else scene_window_sec
     )
+    if exempt_neighbors is None:
+        exempt_neighbors = bool(getattr(settings, "RESULT_DEDUP_EXEMPT_NEIGHBORS", True))
 
     selected: List[dict] = []
     scene_buckets: set = set()
     selected_keys: set = set()
 
+    def _is_neighbor(c: dict) -> bool:
+        return exempt_neighbors and bool(c.get("is_expanded_neighbor"))
+
     def _try_add(candidate: dict, enforce_dedup: bool) -> bool:
         key = f"{candidate['video_id']}_{candidate['frame_idx']}"
         if key in selected_keys:
             return False
-        if enforce_dedup:
+
+        neighbor = _is_neighbor(candidate)
+        if enforce_dedup and not neighbor:
             if not _passes_temporal_nms(candidate, selected, min_frame_gap):
                 return False
             if use_scene_bucket and not _passes_scene_bucket(candidate, scene_buckets, scene_window_sec):
                 return False
+
         selected.append(candidate)
         selected_keys.add(key)
-        if use_scene_bucket and scene_window_sec > 0:
+
+        # A synthetic neighbour must not claim a scene bucket; doing so would
+        # let it suppress a genuine hit that appears later in the ranking.
+        if not neighbor and use_scene_bucket and scene_window_sec > 0:
             scene_buckets.add(
                 _scene_bucket(candidate["video_id"], candidate.get("timestamp", 0.0), scene_window_sec)
             )
         return True
 
-    # Pass 1: strict dedup in score order
     for c in results:
         if len(selected) >= top_k:
             break
         _try_add(c, enforce_dedup=True)
 
-    # Pass 2: backfill without dedup rules so UI is not short on results
     if len(selected) < top_k:
         for c in results:
             if len(selected) >= top_k:
