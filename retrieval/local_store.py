@@ -16,7 +16,7 @@ class LocalVectorStore:
 
     def __init__(self):
         self.clip_dim = settings.UNIFIED_DIM
-        self.siglip2_dim = settings.EMBEDDING_DIM_SIGLIP2_STORED
+        self.siglip2_dim = settings.SIGLIP2_SLOT_DIM
         self.dim = self.clip_dim
         self._ids = []
         self._video_ids = []

@@ -12,6 +12,12 @@ keyframes/
 embeddings_pecore.pkl
 persistent_store-*/
 
+# C2LIP checkpoint + precomputed corpus embeddings (this machine's local
+# assets, 1.2GB + ~2GB -- share separately if a teammate needs them, never
+# via git; see SESSION_HANDOFF.md)
+c2lipweight.pt
+embedding finvit + c2lip/
+
 # HF model cache (auto-downloads on first run, see run.py)
 hf-cache/
 

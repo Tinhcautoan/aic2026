@@ -34,7 +34,7 @@ class MilvusVectorStore:
     def __init__(self):
         self.collection_name = settings.MILVUS_COLLECTION_NAME
         self.clip_dim = settings.UNIFIED_DIM
-        self.siglip2_dim = settings.EMBEDDING_DIM_SIGLIP2_STORED
+        self.siglip2_dim = settings.SIGLIP2_SLOT_DIM
         self.dim = self.clip_dim  # kept so existing code that references it doesn't break
         self.client = None
 
@@ -319,6 +319,9 @@ class MilvusVectorStore:
         clip_embs = emb_data.get("clip", [])
         siglip2_embs = emb_data.get("siglip2", [])
 
+        if settings.USE_C2LIP:
+            siglip2_embs = self._load_c2lip_embeddings(fallback=siglip2_embs, expected_len=len(ids))
+
         by_video = {}
         for i, fid in enumerate(ids):
             m = metadata.get(fid, {}) or {}
@@ -349,6 +352,39 @@ class MilvusVectorStore:
 
         logger.info(f"Migrated {total} frames from PersistentVectorStore")
         return total
+
+    def _load_c2lip_embeddings(self, fallback: list, expected_len: int) -> list:
+        """Precomputed C2LIP vectors for the frames already in persistent_store,
+        positionally aligned to metadata.pkl's ``ids`` (same order the pkl was
+        generated in -- verified against the live siglip2 embeddings before
+        this feature was wired up). Falls back to the original siglip2 vectors
+        on any mismatch so a stale/incomplete pkl can't silently misalign the
+        corpus against the wrong frames.
+        """
+        import pickle
+
+        path = settings.C2LIP_EMBEDDINGS_PKL
+        try:
+            with open(path, "rb") as f:
+                data = pickle.load(f)
+            c2lip_embs = data.get("c2lip")
+        except Exception as e:
+            logger.error(f"USE_C2LIP is True but {path!r} could not be loaded ({e}); "
+                         f"falling back to siglip2 vectors from persistent_store.")
+            return fallback
+
+        if c2lip_embs is None or len(c2lip_embs) != expected_len:
+            logger.error(
+                f"USE_C2LIP is True but {path!r} has "
+                f"{'no' if c2lip_embs is None else len(c2lip_embs)} 'c2lip' vectors, "
+                f"expected {expected_len} (matching persistent_store's ids). "
+                f"Falling back to siglip2 vectors from persistent_store."
+            )
+            return fallback
+
+        logger.info(f"Using {len(c2lip_embs)} precomputed C2LIP vectors from {path!r} "
+                    f"for the siglip2_embedding field.")
+        return c2lip_embs
 
     def get_frame_embeddings(self, video_id: str, frame_indices: Optional[List[int]] = None) -> List[dict]:
         """Return stored embeddings for specific frames of a video.

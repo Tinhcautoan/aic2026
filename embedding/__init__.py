@@ -14,6 +14,11 @@ except ImportError:
     TULIPEncoder = None
 
 try:
+    from .c2lip_encoder import C2LIPEncoder
+except ImportError:
+    C2LIPEncoder = None
+
+try:
     from .hybrid_engine import HybridEmbeddingEngine
 except ImportError:
     HybridEmbeddingEngine = None

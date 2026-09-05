@@ -5,6 +5,7 @@ Survives server restarts — no need to re-process videos.
 """
 
 import pickle
+import time
 import numpy as np
 from pathlib import Path
 from typing import List, Dict, Optional
@@ -50,7 +51,12 @@ class PersistentVectorStore:
                     emb_data = pickle.load(f)
                     self._embeddings_clip = emb_data.get('clip', [])
                     self._embeddings_siglip2 = emb_data.get('siglip2', [])
-                
+
+                if settings.USE_C2LIP:
+                    self._embeddings_siglip2 = self._load_c2lip_embeddings(
+                        fallback=self._embeddings_siglip2, expected_len=len(self._ids)
+                    )
+
                 logger.info(f"Restored {len(self._ids)} frames from {self.storage_dir}")
         except Exception as e:
             logger.error(f"Failed to load persistent store: {e}")
@@ -58,6 +64,48 @@ class PersistentVectorStore:
             self._metadata = {}
             self._embeddings_clip = []
             self._embeddings_siglip2 = []
+
+    def _load_c2lip_embeddings(self, fallback: list, expected_len: int) -> list:
+        """Precomputed C2LIP vectors for the frames already in this store,
+        positionally aligned to self._ids (verified against this store's own
+        siglip2 vectors before this feature was wired up -- same source, same
+        order). Falls back to the original siglip2 vectors on any mismatch so
+        a stale/incomplete pkl can't silently misalign the corpus."""
+        path = settings.C2LIP_EMBEDDINGS_PKL
+        c2lip_embs = None
+        last_err = None
+        # This is a ~1GB read and this machine's disk has shown transient
+        # "[Errno 22] Invalid argument" failures under memory pressure right
+        # after loading multiple GB-scale models -- retry a few times before
+        # accepting the (silently wrong) fallback.
+        for attempt in range(5):
+            try:
+                with open(path, 'rb') as f:
+                    data = pickle.load(f)
+                c2lip_embs = data.get('c2lip')
+                last_err = None
+                break
+            except Exception as e:
+                last_err = e
+                time.sleep(2)
+        if last_err is not None:
+            logger.error(f"USE_C2LIP is True but {path!r} could not be loaded after 5 "
+                         f"attempts ({last_err}); falling back to siglip2 vectors from "
+                         f"persistent_store.")
+            return fallback
+
+        if c2lip_embs is None or len(c2lip_embs) != expected_len:
+            logger.error(
+                f"USE_C2LIP is True but {path!r} has "
+                f"{'no' if c2lip_embs is None else len(c2lip_embs)} 'c2lip' vectors, "
+                f"expected {expected_len} (matching this store's ids). "
+                f"Falling back to siglip2 vectors from persistent_store."
+            )
+            return fallback
+
+        logger.info(f"Using {len(c2lip_embs)} precomputed C2LIP vectors from {path!r} "
+                    f"for the siglip2 slot.")
+        return c2lip_embs
 
     def _save_to_disk(self):
         """Save current data to disk."""

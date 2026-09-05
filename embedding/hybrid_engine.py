@@ -15,6 +15,7 @@ from .clip_encoder import CLIPEncoder
 from .tulip_encoder import TULIPEncoder
 from .pecore_encoder import PECoreEncoder
 from .siglip2_encoder import SigLIP2Encoder
+from .c2lip_encoder import C2LIPEncoder
 from config import settings
 
 def _validate_cuda(device: str) -> str:
@@ -58,7 +59,12 @@ class HybridEmbeddingEngine:
             self.clip_encoder = TULIPEncoder(device=self.device)
         else:
             self.clip_encoder = CLIPEncoder(device=self.device)
-        self.siglip2_encoder = SigLIP2Encoder(device=self.device)
+
+        if settings.USE_C2LIP:
+            logger.info("Using C2LIP encoder instead of SigLIP2")
+            self.siglip2_encoder = C2LIPEncoder(device=self.device)
+        else:
+            self.siglip2_encoder = SigLIP2Encoder(device=self.device)
 
         self.unified_dim = settings.UNIFIED_DIM
         self._executor = ThreadPoolExecutor(max_workers=2)

@@ -51,6 +51,25 @@ class Settings(BaseSettings):
     SIGLIP2_MODEL_NAME: str = "ViT-SO400M-14-SigLIP2"
     SIGLIP2_PRETRAINED: str = "webli"
 
+    # C2LIP replaces the SigLIP2 branch (the "siglip2" slot / siglip2_embedding
+    # field) when USE_C2LIP is True -- same swap pattern as USE_PECORE above,
+    # but for the second encoder instead of the first. Verified: c2lipweight.pt
+    # is a fine-tuned open_clip ViT-B-16-SigLIP checkpoint (0 missing/unexpected
+    # keys), 768-dim output. Different machines can run different encoders in
+    # this slot by toggling this flag in each machine's .env.
+    USE_C2LIP: bool = False
+    C2LIP_MODEL_NAME: str = "ViT-B-16-SigLIP"
+    C2LIP_CHECKPOINT: str = str(PROJECT_ROOT / "c2lipweight.pt")
+    EMBEDDING_DIM_C2LIP: int = 768
+    # Precomputed corpus-side embeddings for the frames already sitting in
+    # data/persistent_store (see embedding/__init__.py's ingest path). Only
+    # used once, to bootstrap Milvus without re-running inference on frames
+    # already extracted. New frames ingested after USE_C2LIP is on are
+    # encoded live via C2LIPEncoder instead.
+    C2LIP_EMBEDDINGS_PKL: str = str(
+        PROJECT_ROOT / "embedding finvit + c2lip" / "embeddings_c2lip.pkl"
+    )
+
     TULIP_MODEL_NAME: str = "ViT-L-14"
     # NOTE: "openai" loads OpenAI CLIP ViT-L/14 weights, NOT TULIP. Leaving
     # USE_TULIP on with an empty TULIP_CHECKPOINT means running a 2021 model
@@ -88,6 +107,13 @@ class Settings(BaseSettings):
     # Dimensionality actually stored for the SigLIP2 field. Must match the
     # encoder's output_dim; the store asserts this at startup.
     EMBEDDING_DIM_SIGLIP2_STORED: int = 1152
+
+    @property
+    def SIGLIP2_SLOT_DIM(self) -> int:
+        """Effective dim of whichever model backs the "siglip2" slot right
+        now. Vector stores should read this, not EMBEDDING_DIM_SIGLIP2_STORED
+        directly, so they auto-adjust when USE_C2LIP is toggled."""
+        return self.EMBEDDING_DIM_C2LIP if self.USE_C2LIP else self.EMBEDDING_DIM_SIGLIP2_STORED
 
     USE_FP16: bool = True
     OPENCLIP_MODEL_DIR: str = ""
