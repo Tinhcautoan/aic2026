@@ -27,6 +27,7 @@ from api.models import (
     VQARequest, VQABatchRequest, VQAResponse,
     QaSearchRequest, QaSearchResponse, QaSearchResultItem,
     TrakeRequest, TrakeResponse, TrakeResultItem,
+    RankingSaveRequest,
 )
 
 # ---- Lazy imports ----
@@ -1092,6 +1093,28 @@ def create_app() -> FastAPI:
             )
             search_results = reranker.rerank(candidates, top_k=request.top_k) if reranker else candidates[:request.top_k]
 
+        # Per-video real FPS (not all videos are 25fps -- e.g. some are 30/29.97),
+        # cached per request so repeated hits on the same video_id don't reopen it.
+        _fps_cache: dict = {}
+
+        def _video_fps(vid: str) -> float:
+            if vid in _fps_cache:
+                return _fps_cache[vid]
+            fps = 25.0
+            path = resolve_video_path(vid)
+            if path:
+                try:
+                    import cv2
+                    cap = cv2.VideoCapture(path)
+                    f = cap.get(cv2.CAP_PROP_FPS)
+                    cap.release()
+                    if f and f > 0:
+                        fps = f
+                except Exception:
+                    pass
+            _fps_cache[vid] = fps
+            return fps
+
         alignments = []
         for r in search_results[:request.top_k]:
             vid = r["video_id"]
@@ -1130,7 +1153,7 @@ def create_app() -> FastAPI:
                     frames=frames,
                     score=a.total_score,
                     confidence=round(min(max(1.0 / (1.0 + math.exp(-float(a.total_score))), 0.0), 1.0), 4),
-                    timestamp=float(frames[0]) / 25.0 if frames else 0.0,
+                    timestamp=float(frames[0]) / _video_fps(a.video_id) if frames else 0.0,
                     event_frames=[{"event": ef.event_text, "frame_idx": ef.frame_idx, "score": ef.score} for ef in a.event_frames],
                 ))
 
@@ -1152,6 +1175,45 @@ def create_app() -> FastAPI:
         milvus_store.delete_by_video(video_id)
         _known_videos = [v for v in _known_videos if v.get("video_id") != video_id]
         return {"status": "deleted", "video_id": video_id}
+
+    # ---- Manual ranking store (display-layer submission text files) ----
+    # These endpoints only read/write plain-text files under submission/.
+    # They never call the embedding engine or the vector store, so editing
+    # a ranking here cannot change any model output.
+
+    @app.get("/api/ranking/list")
+    async def ranking_list():
+        from retrieval import ranking_store
+        return {
+            "files": ranking_store.list_rankings(),
+            "dir": str(ranking_store.ranking_dir()),
+        }
+
+    @app.get("/api/ranking/load")
+    async def ranking_load(name: str = Query(..., description="File name under submission/")):
+        from retrieval import ranking_store
+        try:
+            return ranking_store.load_ranking(name)
+        except FileNotFoundError as e:
+            raise HTTPException(404, str(e))
+
+    @app.post("/api/ranking/save")
+    async def ranking_save(req: RankingSaveRequest):
+        from retrieval import ranking_store
+        rows = [r.model_dump(exclude_none=True) for r in req.rows]
+        try:
+            res = ranking_store.save_ranking(req.name, rows, mode=req.mode)
+        except Exception as e:
+            logger.error(f"Ranking save failed: {e}")
+            raise HTTPException(400, f"Failed to save ranking: {e}")
+        return {"status": "ok", **res}
+
+    @app.delete("/api/ranking/delete")
+    async def ranking_delete(name: str = Query(..., description="File name under submission/")):
+        from retrieval import ranking_store
+        if not ranking_store.delete_ranking(name):
+            raise HTTPException(404, f"Ranking file not found: {name}")
+        return {"status": "deleted", "name": name}
 
     @app.get("/api/health")
     async def health_check():

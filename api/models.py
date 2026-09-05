@@ -150,3 +150,22 @@ class VQAResponse(BaseModel):
     evidence_timestamp: Optional[float] = None
     confidence: float = 0.0
     source: str = "metadata"
+
+
+class RankingRow(BaseModel):
+    """One editable ranking row. index 0 in the list == Top 1."""
+    video_id: str = ""
+    frame_idx: Optional[int] = None
+    frames: Optional[List[int]] = None
+    answer: Optional[str] = None
+
+
+class RankingSaveRequest(BaseModel):
+    """Persist a UI-edited ranking to a plain-text submission file.
+
+    Display-layer only: this rewrites submission/<name> with the given
+    order and never affects model output.
+    """
+    name: str = Field(..., description="Target file name under submission/ (e.g. 'query_007.txt')", max_length=200)
+    mode: str = Field(default="tkis", description="tkis | qa | trake — controls the line format")
+    rows: List[RankingRow] = Field(default_factory=list, description="Ranked rows, best first (index 0 = Top 1)")

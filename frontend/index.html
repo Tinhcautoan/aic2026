@@ -207,9 +207,8 @@
         /* ── CSV export panel ───────────────────────────────── */
         .csv-export-panel {
             background: var(--panel); border-top: 1px solid var(--border);
-            padding: 10px 16px; flex-shrink: 0; display: none;
+            padding: 8px 16px 10px; flex-shrink: 0; display: block;
         }
-        .csv-export-panel.visible { display: block; }
         .csv-export-inner {
             display: flex; align-items: flex-start; gap: 10px;
         }
@@ -220,6 +219,80 @@
             padding: 8px 10px; line-height: 1.4;
         }
         .csv-actions { display: flex; gap: 6px; flex-shrink: 0; padding-top: 2px; }
+
+        /* ── Ranking editor ─────────────────────────────────── */
+        .rank-head {
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        }
+        .rank-head .rank-title {
+            font-size: 0.72rem; font-weight: 700; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer;
+            user-select: none; display: flex; align-items: center; gap: 4px;
+        }
+        .rank-head input[type="text"], .rank-head select {
+            background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text); font-size: 0.76rem; padding: 5px 8px; outline: none;
+            font-family: inherit;
+        }
+        .rank-head input#rankFilename { width: 190px; }
+        .rank-head select#rankSavedList { max-width: 160px; cursor: pointer; }
+        .rank-head .spacer { flex: 1; }
+        .rank-body { display: flex; gap: 10px; margin-top: 8px; }
+        .csv-export-panel.collapsed .rank-body,
+        .csv-export-panel.collapsed .rank-tools { display: none; }
+        .rank-rows {
+            flex: 1.4; max-height: 210px; overflow-y: auto;
+            border: 1px solid var(--border); border-radius: 6px;
+            background: var(--bg); padding: 4px;
+        }
+        .rank-row {
+            display: grid;
+            grid-template-columns: 30px 52px 1fr 74px auto;
+            gap: 6px; align-items: center; padding: 3px 4px;
+            border-bottom: 1px solid var(--border);
+        }
+        .rank-row:last-child { border-bottom: none; }
+        .rank-row .rk { font-size: 0.72rem; font-weight: 700; color: var(--accent); text-align: center; }
+        .rank-row .thumb {
+            width: 52px; height: 30px; border-radius: 4px; overflow: hidden;
+            background: #12121a; display: flex; align-items: center; justify-content: center;
+        }
+        .rank-row .thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .rank-row input {
+            background: var(--panel); border: 1px solid var(--border); border-radius: 4px;
+            color: var(--text); font-size: 0.74rem; padding: 4px 6px; outline: none;
+            font-family: inherit; width: 100%;
+        }
+        .rank-row input:focus { border-color: var(--accent); }
+        .rank-row .row-actions { display: flex; gap: 2px; }
+        .rank-row .row-actions button {
+            width: 22px; height: 22px; padding: 0; border: none; border-radius: 4px;
+            background: rgba(108,92,231,0.15); color: var(--accent); font-size: 0.8rem;
+            cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+        }
+        .rank-row .row-actions button:hover { background: var(--accent); color: #fff; }
+        .rank-row .row-actions button.del { background: rgba(255,82,82,0.15); color: var(--error); }
+        .rank-row .row-actions button.del:hover { background: var(--error); color: #fff; }
+        .rank-empty { padding: 14px; text-align: center; color: var(--text-secondary); font-size: 0.75rem; }
+        .csv-export-panel textarea#csvExportText { flex: 1; max-height: 210px; min-height: 120px; }
+        .rank-tools { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }
+        .rank-tool {
+            display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 6px; padding: 6px 10px;
+        }
+        .rank-tool > span {
+            font-size: 0.68rem; font-weight: 700; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .rank-tool input {
+            background: var(--panel); border: 1px solid var(--border); border-radius: 4px;
+            color: var(--text); font-size: 0.76rem; padding: 5px 7px; outline: none;
+            font-family: inherit;
+        }
+        .rank-tool input:focus { border-color: var(--accent); }
+        .rank-tool input.w-vid { width: 110px; }
+        .rank-tool input.w-num { width: 74px; }
 
         /* ── Video modal ────────────────────────────────────── */
         .video-modal {
@@ -406,14 +479,42 @@
 
 </div>
 
-<!-- ════════════════════════════════════════════════════════════ CSV EXPORT -->
+<!-- ════════════════════════════════════════════════════════════ RANKING EDITOR / EXPORT -->
 <div class="csv-export-panel" id="csvExportPanel">
-    <div class="csv-export-inner">
-        <textarea id="csvExportText" readonly placeholder="CSV output will appear here..."></textarea>
-        <div class="csv-actions">
-            <button class="btn btn-primary btn-sm" onclick="copyCsv()">Copy All</button>
-            <button class="btn btn-secondary btn-sm" onclick="downloadCsv()">Download CSV</button>
+    <div class="rank-head">
+        <span class="rank-title" id="rankToggle" onclick="toggleRankPanel()">▾ Submission ranking</span>
+        <input type="text" id="rankFilename" placeholder="filename.txt" title="Download / save-to-file name">
+        <button class="btn btn-secondary btn-sm" onclick="loadRankFromResults()" title="Copy current search results into the editor">↧ From results</button>
+        <select id="rankSavedList" onchange="loadSavedRanking()" title="Load a saved submission file"><option value="">Load saved…</option></select>
+        <span class="spacer"></span>
+        <button class="btn btn-secondary btn-sm" onclick="copyCsv()">Copy</button>
+        <button class="btn btn-secondary btn-sm" onclick="downloadCsv()">Download</button>
+        <button class="btn btn-primary btn-sm" onclick="saveRankingToFile()">💾 Save to file</button>
+    </div>
+
+    <div class="rank-tools">
+        <div class="rank-tool">
+            <span>Set rank</span>
+            <input class="w-vid" type="text" id="ovVideoId" placeholder="video_id">
+            <input class="w-num" type="number" id="ovFrameIdx" placeholder="frame_id" min="0">
+            <input class="w-num" type="number" id="ovRank" placeholder="→ Top #" min="1">
+            <button class="btn btn-secondary btn-sm" onclick="applyOverrideRow()">Apply</button>
         </div>
+        <div class="rank-tool">
+            <span>Batch step</span>
+            <input class="w-vid" type="text" id="batchVideoId" placeholder="video_id">
+            <input class="w-num" type="number" id="batchFrameIdx" placeholder="frame_id" min="0">
+            <input class="w-num" type="number" id="batchStep" placeholder="step N" value="1">
+            <input class="w-num" type="number" id="batchCount" placeholder="count" value="10" min="1" max="100">
+            <button class="btn btn-secondary btn-sm" onclick="applyBatchAssign()">Generate</button>
+        </div>
+    </div>
+
+    <div class="rank-body">
+        <div class="rank-rows" id="rankRowsList">
+            <div class="rank-empty">No rows yet — run a search, click “From results”, or use the tools above.</div>
+        </div>
+        <textarea id="csvExportText" readonly placeholder="ranking preview (row 1 = Top 1)…"></textarea>
     </div>
 </div>
 
@@ -448,7 +549,10 @@
     let lastQaData = null;
     let searchTimer = null;
     let csvRows = [];
+    let rankRows = [];  // editable submission ranking: [{video_id, frame_idx, answer?, frames?}]
     let videoModalState = { videoId: '', frameIdx: 0, timestamp: 0, fps: 25 };
+
+    const DEFAULT_RANK_NAME = { tkis: 'competition_tkis.txt', qa: 'competition_qa.txt', trake: 'competition_trake.txt' };
 
     /* ── Utilities ──────────────────────────────────────────── */
 
@@ -503,8 +607,18 @@
             document.querySelectorAll('.mode-controls').forEach(el => el.classList.remove('active'));
             $(currentMode + 'Controls').classList.add('active');
             clearResults();
+            syncDefaultRankName();
         });
     });
+
+    function syncDefaultRankName() {
+        const el = $('rankFilename');
+        if (!el) return;
+        const known = Object.values(DEFAULT_RANK_NAME);
+        if (!el.value.trim() || known.includes(el.value.trim())) {
+            el.value = DEFAULT_RANK_NAME[currentMode] || 'competition.txt';
+        }
+    }
 
     /* ── TKIS Search ────────────────────────────────────────── */
 
@@ -801,89 +915,274 @@
     window.clearResults = function () {
         currentResults = [];
         csvRows = [];
+        rankRows = [];
         $('resultsPanel').innerHTML =
             '<div class="empty-state"><div class="icon">\u{1F50D}</div><p>Select a mode and search to begin</p></div>';
-        $('csvExportPanel').classList.remove('visible');
-        $('csvExportText').value = '';
+        renderRankRows();
     };
 
-    /* ── CSV generation ─────────────────────────────────────── */
+    /* ══ Submission ranking editor ═══════════════════════════════ */
+    /* Feature 1: custom download filename   (rankFilename)          */
+    /* Feature 2: manual ranking override    (drag-free: ▲▼ / Set)   */
+    /* Feature 3: batch rank assignment      (video_id, frame, N)    */
+    /* rankRows is the single source of truth; the preview + the     */
+    /* saved text file are just serializations of it.               */
 
-    function buildTkisCsvRow(results) {
-        return results
-            .filter(r => r && r.video_id)
-            .map(r => `${r.video_id}, ${r.frame_idx}`)
-            .join('\n');
-    }
-
-    function buildQaCsvRow(results) {
-        let filtered = results;
-        if (!$('qaIncludeVague').checked) {
-            filtered = results.filter(r => !r.is_vague);
+    function getVisibleResults() {
+        let res = currentResults || [];
+        const cb = $('qaIncludeVague');
+        if (currentMode === 'qa' && cb && !cb.checked) {
+            res = res.filter(r => !r.is_vague);
         }
-        return filtered
-            .filter(r => r && r.video_id)
-            .map(r => {
-                const ans = (r.answer || '').replace(/"/g, '""');
-                return `${r.video_id}, ${r.frame_idx}, "${ans}"`;
-            })
-            .join('\n');
+        return res;
     }
 
-    function buildTrakeCsvRow(results) {
-        return results
+    function rowsFromResults(results) {
+        return (results || [])
             .filter(r => r && r.video_id)
             .map(r => {
-                const frames = r.frames || r.aligned_frames || [r.frame_idx];
-                return `${r.video_id}, ${frames.join(', ')}`;
-            })
-            .join('\n');
+                const row = { video_id: String(r.video_id), frame_idx: Number(r.frame_idx) || 0 };
+                if (r.answer != null && r.answer !== '') row.answer = String(r.answer);
+                const fr = r.frames || r.aligned_frames;
+                if (Array.isArray(fr) && fr.length) row.frames = fr.map(Number);
+                return row;
+            });
     }
 
-    function updateCsvExport() {
-        const panel = $('csvExportPanel');
-        const textarea = $('csvExportText');
-        if (!currentResults.length) {
-            panel.classList.remove('visible');
-            textarea.value = '';
+    function rankToText() {
+        const mode = currentMode;
+        const lines = [];
+        for (const r of rankRows) {
+            const vid = String(r.video_id || '').trim();
+            if (!vid) continue;
+            if (mode === 'trake') {
+                const fr = (r.frames && r.frames.length ? r.frames : [r.frame_idx])
+                    .filter(x => x !== '' && x != null);
+                lines.push(`${vid}, ${fr.join(', ')}`);
+            } else if (mode === 'qa') {
+                const ans = String(r.answer || '').replace(/"/g, '""');
+                lines.push(`${vid}, ${r.frame_idx ?? 0}, "${ans}"`);
+            } else {
+                lines.push(`${vid}, ${r.frame_idx ?? 0}`);
+            }
+        }
+        return lines.join('\n');
+    }
+
+    function refreshPreview() { $('csvExportText').value = rankToText(); }
+
+    function renderRankRows() {
+        const box = $('rankRowsList');
+        if (!box) return;
+        if (!rankRows.length) {
+            box.innerHTML = '<div class="rank-empty">No rows yet — run a search, click “From results”, or use the tools above.</div>';
+            refreshPreview();
             return;
         }
-        panel.classList.add('visible');
-        let csv = '';
-        if (currentMode === 'tkis') {
-            csv = buildTkisCsvRow(currentResults);
-        } else if (currentMode === 'qa') {
-            csv = buildQaCsvRow(currentResults);
+        const mode = currentMode;
+        box.innerHTML = rankRows.map((r, i) => {
+            const vid = escapeHtml(r.video_id || '');
+            const frameField = mode === 'trake'
+                ? `<input type="text" data-i="${i}" data-f="frames" value="${escapeHtml((r.frames && r.frames.length ? r.frames : [r.frame_idx]).join(','))}" title="comma-separated frame indices">`
+                : `<input type="number" min="0" data-i="${i}" data-f="frame_idx" value="${r.frame_idx ?? 0}">`;
+            const thumbFrame = (r.frames && r.frames.length) ? r.frames[0] : r.frame_idx;
+            const thumb = (r.video_id && thumbFrame != null && thumbFrame !== '')
+                ? `<img src="/api/frame/${encodeURIComponent(r.video_id)}/${thumbFrame}" loading="lazy" onerror="this.style.display='none'">`
+                : '';
+            const answerField = mode === 'qa'
+                ? `<input type="text" data-i="${i}" data-f="answer" placeholder="answer" value="${escapeHtml(r.answer || '')}" style="grid-column:1/-1">`
+                : '';
+            return `<div class="rank-row">
+                <div class="rk">${i + 1}</div>
+                <div class="thumb">${thumb}</div>
+                <input type="text" data-i="${i}" data-f="video_id" value="${vid}" title="video_id">
+                ${frameField}
+                <div class="row-actions">
+                    <button type="button" data-act="up" data-i="${i}" title="Move up">▲</button>
+                    <button type="button" data-act="down" data-i="${i}" title="Move down">▼</button>
+                    <button type="button" class="del" data-act="del" data-i="${i}" title="Remove">✕</button>
+                </div>
+                ${answerField}
+            </div>`;
+        }).join('');
+        refreshPreview();
+    }
+
+    $('rankRowsList').addEventListener('input', e => {
+        const el = e.target;
+        if (!el || el.tagName !== 'INPUT') return;
+        const i = parseInt(el.dataset.i, 10);
+        const f = el.dataset.f;
+        if (isNaN(i) || !rankRows[i] || !f) return;
+        if (f === 'frame_idx') {
+            rankRows[i].frame_idx = el.value === '' ? '' : parseInt(el.value, 10);
+        } else if (f === 'frames') {
+            rankRows[i].frames = el.value.split(',').map(s => s.trim()).filter(s => s !== '').map(Number);
         } else {
-            csv = buildTrakeCsvRow(currentResults);
+            rankRows[i][f] = el.value;
         }
-        textarea.value = csv;
+        refreshPreview();
+    });
+
+    $('rankRowsList').addEventListener('click', e => {
+        const btn = e.target.closest('button[data-act]');
+        if (!btn) return;
+        const i = parseInt(btn.dataset.i, 10);
+        const act = btn.dataset.act;
+        if (isNaN(i) || !rankRows[i]) return;
+        if (act === 'del') rankRows.splice(i, 1);
+        else if (act === 'up' && i > 0) { const t = rankRows[i - 1]; rankRows[i - 1] = rankRows[i]; rankRows[i] = t; }
+        else if (act === 'down' && i < rankRows.length - 1) { const t = rankRows[i + 1]; rankRows[i + 1] = rankRows[i]; rankRows[i] = t; }
+        renderRankRows();
+    });
+
+    function updateCsvExport() {
+        rankRows = rowsFromResults(getVisibleResults());
+        renderRankRows();
     }
 
     window.buildTkisCsv = function () {
         if (!currentResults.length) return toast('No results yet', 'error');
         updateCsvExport();
-        toast('CSV row built', 'ok');
+        toast('Ranking built from results', 'ok');
+    };
+
+    window.loadRankFromResults = function () {
+        if (!currentResults.length) return toast('No search results to load', 'error');
+        updateCsvExport();
+        toast('Loaded ' + rankRows.length + ' rows from results', 'ok');
+    };
+
+    window.toggleRankPanel = function () {
+        const p = $('csvExportPanel');
+        p.classList.toggle('collapsed');
+        $('rankToggle').textContent =
+            (p.classList.contains('collapsed') ? '▸' : '▾') + ' Submission ranking';
+    };
+
+    window.applyOverrideRow = function () {
+        const vid = $('ovVideoId').value.trim();
+        const fRaw = $('ovFrameIdx').value.trim();
+        const rankRaw = $('ovRank').value.trim();
+        if (!vid) return toast('Enter a video_id', 'error');
+        if (fRaw === '') return toast('Enter a frame_id', 'error');
+        const frame = parseInt(fRaw, 10);
+        if (isNaN(frame)) return toast('frame_id must be a number', 'error');
+        // Drop any existing row for the same (video_id, frame) so this acts as "move to".
+        rankRows = rankRows.filter(r => !(String(r.video_id).trim() === vid && Number(r.frame_idx) === frame));
+        let pos;
+        if (rankRaw === '') {
+            pos = rankRows.length;
+        } else {
+            pos = parseInt(rankRaw, 10) - 1;
+            if (isNaN(pos) || pos < 0) pos = 0;
+            if (pos > rankRows.length) pos = rankRows.length;
+        }
+        rankRows.splice(pos, 0, { video_id: vid, frame_idx: frame });
+        renderRankRows();
+        toast(`${vid} #${frame} → Top ${pos + 1}`, 'ok');
+    };
+
+    window.applyBatchAssign = function () {
+        const vid = $('batchVideoId').value.trim();
+        const base = parseInt($('batchFrameIdx').value, 10);
+        const step = parseInt($('batchStep').value, 10);
+        let count = parseInt($('batchCount').value, 10);
+        if (!vid) return toast('Enter a video_id', 'error');
+        if (isNaN(base)) return toast('Enter a base frame_id', 'error');
+        if (isNaN(step)) return toast('Enter a step N', 'error');
+        if (isNaN(count) || count < 1) count = 10;
+        if (count > 100) count = 100;
+        const gen = [];
+        for (let i = 0; i < count; i++) gen.push({ video_id: vid, frame_idx: base + i * step });
+        rankRows = gen.concat(rankRows.slice(count));
+        renderRankRows();
+        toast(`Generated Top 1–${count}: ${vid} @ ${base} step ${step}`, 'ok');
     };
 
     window.copyCsv = function () {
-        const text = $('csvExportText').value;
-        if (!text) return toast('No CSV to copy', 'error');
+        const text = rankToText();
+        if (!text) return toast('Nothing to copy', 'error');
         navigator.clipboard.writeText(text)
-            .then(() => toast('Copied to clipboard', 'ok'))
+            .then(() => toast('Copied ' + text.split('\n').length + ' rows', 'ok'))
             .catch(() => toast('Clipboard unavailable', 'error'));
     };
 
+    function resolveRankName() {
+        let name = ($('rankFilename').value || '').trim() ||
+            (DEFAULT_RANK_NAME[currentMode] || 'competition.txt');
+        return name.replace(/[\\/]+/g, '_');
+    }
+
     window.downloadCsv = function () {
-        const text = $('csvExportText').value;
-        if (!text) return toast('No CSV to download', 'error');
-        const ext = currentMode === 'tkis' ? 'csv' : 'csv';
-        const blob = new Blob([text + '\n'], { type: 'text/csv;charset=utf-8;' });
+        const text = rankToText();
+        if (!text) return toast('Nothing to download', 'error');
+        let name = resolveRankName();
+        if (!/\.(txt|csv)$/i.test(name)) name += '.txt';
+        const blob = new Blob([text + '\n'], { type: 'text/plain;charset=utf-8;' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `competition_${currentMode}.csv`;
+        a.download = name;
         a.click();
-        toast('CSV downloaded', 'ok');
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        toast('Downloaded ' + name, 'ok');
+    };
+
+    window.saveRankingToFile = async function () {
+        if (!rankRows.length) return toast('Nothing to save', 'error');
+        const name = resolveRankName();
+        try {
+            const r = await fetch(API + '/api/ranking/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, mode: currentMode, rows: rankRows }),
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.detail || 'Save failed');
+            $('rankFilename').value = d.name;
+            await refreshSavedRankings();
+            $('rankSavedList').value = d.name;
+            toast(`Saved ${d.rows_written} rows → submission/${d.name}`, 'ok');
+        } catch (e) {
+            toast(e.message, 'error');
+        }
+    };
+
+    async function refreshSavedRankings() {
+        try {
+            const r = await fetch(API + '/api/ranking/list');
+            if (!r.ok) return;
+            const d = await r.json();
+            const sel = $('rankSavedList');
+            const cur = sel.value;
+            sel.innerHTML = '<option value="">Load saved…</option>' +
+                (d.files || []).map(f =>
+                    `<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)} (${f.rows})</option>`).join('');
+            if (cur) sel.value = cur;
+        } catch (e) { /* offline — ignore */ }
+    }
+
+    window.loadSavedRanking = async function () {
+        const name = $('rankSavedList').value;
+        if (!name) return;
+        try {
+            const r = await fetch(API + '/api/ranking/load?name=' + encodeURIComponent(name));
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.detail || 'Load failed');
+            rankRows = (d.rows || []).map(row => {
+                const out = { video_id: row.video_id, frame_idx: row.frame_idx ?? 0 };
+                if (row.answer != null) out.answer = row.answer;
+                if (Array.isArray(row.frames) && row.frames.length) out.frames = row.frames;
+                return out;
+            });
+            $('rankFilename').value = d.name || name;
+            $('csvExportPanel').classList.remove('collapsed');
+            $('rankToggle').textContent = '▾ Submission ranking';
+            renderRankRows();
+            toast(`Loaded ${rankRows.length} rows from ${name}`, 'ok');
+        } catch (e) {
+            toast(e.message, 'error');
+        }
     };
 
     /* ── Video modal ────────────────────────────────────────── */
@@ -980,6 +1279,10 @@
 
     checkStatus();
     setInterval(checkStatus, 30000);
+
+    syncDefaultRankName();
+    renderRankRows();
+    refreshSavedRankings();
 
 })();
 </script>

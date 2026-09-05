@@ -315,6 +315,8 @@
 
             <div>
                 <label class="section-label">Export</label>
+                <input type="text" id="exportFilename" value="submission.csv" placeholder="filename.csv"
+                       style="margin-bottom:8px;" title="Custom download file name" />
                 <button class="btn btn-primary" onclick="exportCSV()" style="width: 100%;">Export CSV</button>
             </div>
         </div>
@@ -750,16 +752,20 @@
             }
 
             const csv = lines.join('\n');
+            let fname = (document.getElementById('exportFilename').value || '').trim() || 'submission.csv';
+            fname = fname.replace(/[\\/]+/g, '_');
+            if (!/\.(csv|txt)$/i.test(fname)) fname += '.csv';
             const blob = new Blob([csv + '\n'], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
             link.setAttribute('href', url);
-            link.setAttribute('download', 'submission.csv');
+            link.setAttribute('download', fname);
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            toast('Exported submission.csv', 'ok');
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            toast('Exported ' + fname, 'ok');
         }
 
         // ── Video modal ──────────────────────────────────────────
