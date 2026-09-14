@@ -5,6 +5,11 @@ data/persistent_store/
 data/cache/
 data/media-info-aic25-b1
 
+# Per-video ASR transcripts (data/asr/*.json, ~219MB, from
+# scripts/extract_asr.py) -- regenerable locally, never via git; see
+# scripts/merge_asr_into_metadata.py for how they get consumed.
+data/asr/
+
 # Root-level video/keyframe/embedding dumps (local dev data, regenerate via
 # scripts/setup_local.py or export_embeddings_from_keyframes.py)
 video/

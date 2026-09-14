@@ -287,6 +287,28 @@ class PersistentVectorStore:
             })
         return results
 
+    def is_empty(self) -> bool:
+        """True if the store has no entities yet (mirrors MilvusVectorStore)."""
+        return len(self._ids) == 0
+
+    def get_all_frame_records(self, batch_size: int = 10000) -> List[Dict]:
+        """Return every frame as {'video_id','frame_idx','metadata': {...}}.
+
+        Mirrors MilvusVectorStore.get_all_frame_records() so
+        build_bm25_index_from_store() works against this store too --
+        without this, BM25 silently stays empty forever even once metadata
+        (e.g. asr_transcript) is populated. `batch_size` is accepted for
+        interface compatibility but unused (already all in memory).
+        """
+        return [
+            {
+                "video_id": meta.get("video_id", ""),
+                "frame_idx": meta.get("frame_idx", 0),
+                "metadata": meta,
+            }
+            for meta in self._metadata.values()
+        ]
+
     def get_collection_stats(self) -> Dict:
         """Return collection statistics."""
         return {
