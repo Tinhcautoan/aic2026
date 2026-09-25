@@ -15,7 +15,7 @@ export KEYFRAME_DIRS="$DATA/keyframes"
 export VIDEO_DIR="$DATA/videos"
 export EXTRA_VIDEO_DIRS=""
 export PYTHONIOENCODING=utf-8
-export HF_HOME="${HF_HOME:-$DATA/hf-cache}"      # mô hình PE-Core + bộ dịch tự tải về đây ở lần chạy đầu (~6 GB)
+export HF_HOME="${HF_HOME:-$DATA/hf-cache}"      # mô hình PE-Core + bộ dịch tự tải về đây ở lần chạy đầu (~12 GB)
 [ -f "$INDEX_DIR/videos.json" ] || { echo "Không thấy chỉ mục ở $INDEX_DIR — chạy trước: python3 scripts/setup_from_hf.py \"$DATA\""; exit 1; }
 echo "Đang nạp mô hình và chỉ mục (lần đầu vài phút vì tải mô hình). Khi thấy 'Engine ready' thì mở http://localhost:$PORT"
 exec python3 -m uvicorn api.app:app --host 127.0.0.1 --port "$PORT" --log-level info

@@ -15,6 +15,6 @@ if not exist "%INDEX_DIR%\videos.json" (
   pause
   exit /b 1
 )
-echo Dang nap mo hinh va chi muc (lan dau vai phut vi tai mo hinh ~6 GB). Khi thay "Engine ready" thi mo http://localhost:8000
+echo Dang nap mo hinh va chi muc (lan dau vai phut vi tai mo hinh ~12 GB). Khi thay "Engine ready" thi mo http://localhost:8000
 python -m uvicorn api.app:app --host 127.0.0.1 --port 8000 --log-level info
 pause

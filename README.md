@@ -1,198 +1,262 @@
-**Team ** — 1st Place, High-School Division
+# AIC 2026 — Tìm kiếm video bằng PE-Core + nộp bài DRES
 
-Video retrieval for the AIC challenge (KIS / Q&A / TRAKE) using PE-Core + SigLIP2 dual-encoder dense search, BM25 sparse search, cross-encoder reranking, and a calibrated confidence layer.
+Hệ thống dùng ở vòng chung kết AIC 2026 cho 3 loại câu hỏi **KIS** (Textual / Video), **Q&A** và **TRAKE**.
+Nhập mô tả (tiếng Việt hoặc tiếng Anh) → hệ thống tìm khung hình khớp nhất trong **1.487 video** → chọn / chỉnh thời điểm trên video → **nộp thẳng lên DRES** từ giao diện.
+
+```
+câu hỏi (Việt/Anh) ──dịch vi→en (GPU)──► PE-Core text encoder ──► 1 phép nhân ma trận với TẤT CẢ 318.809 khung (GPU, ~5 ms)
+      ──► lọc trùng theo thời gian + tối đa 6 khung/video ──► giao diện web ──► chọn khung / xem video ──► NỘP lên DRES
+TRAKE: chấm từng sự kiện → xếp hạng video (trung bình điểm cao nhất mỗi sự kiện) → quy hoạch động chọn 1 khung/sự kiện, tăng dần theo thời gian
+```
+
+- **Một mô hình duy nhất:** [PE-Core-bigG-14-448](https://huggingface.co/timm/PE-Core-bigG-14-448) (vector 1280 chiều). Vector ảnh đã tính sẵn; server chỉ chạy phần mã hoá văn bản.
+- **Không cần cơ sở dữ liệu vector:** toàn bộ chỉ mục (fp16, 0,8 GB) nằm trên GPU, tìm chính xác trên mọi khung.
+- **Dịch Việt → Anh** bằng [vinai-translate-vi2en-v2](https://huggingface.co/vinai/vinai-translate-vi2en-v2) trên GPU, có nhớ đệm từng câu.
+- **Dữ liệu:** 614 video mới (M, N, S) + 873 video cũ (L21–L30) = 1.487 video, 318.809 khung trong chỉ mục (keyframe của mọi video + khung lấy mẫu mỗi 2 giây của 287 video camera giao thông N).
 
 ---
 
-## What This System Does
-
-1. **Ingests a video** → extracts keyframes via feature-difference scene detection
-2. **Generates embeddings** for each keyframe using two dense encoders:
-   - **PE-Core** (Meta, `hf-hub:timm/PE-Core-bigG-14-448`, 1280-dim) — primary visual-semantic encoder
-   - **SigLIP2** (ViT-SO400M-14, 1152-dim native) — second, independently-trained encoder for fusion diversity
-3. **Stores embeddings** in Milvus Lite (file-based, no Docker/server needed) — falls back automatically to an in-process `PersistentVectorStore` if Milvus Lite can't initialize
-4. **Searches** in stages: dense fusion (RRF + CombMNZ over PE-Core/SigLIP2) → BM25 over OCR/ASR/object text → cross-encoder rerank (BAAI/bge-reranker-v2-m3) → frame-neighbor expansion → dedup → confidence scoring
-5. **Serves results** through a web UI (`/ui`) with thumbnails, timestamps, and a calibrated confidence score (separate from the ranking score — see `retrieval/scoring.py` for why that split exists)
-
-Supports three query modes: **KIS** (find the matching frame from a text/image description), **Q&A** (KIS + VLM-generated answer), **TRAKE** (align a sequence of events in temporal order via DP, `retrieval/trake_aligner.py`).
-
----
-
-## Prerequisites
-
-- **Python 3.10+**
-- **NVIDIA GPU** — PE-Core-bigG alone needs ~4.9GB VRAM at fp16; add SigLIP2 (~1GB), the keyframe-extraction CLIP model (~0.6GB), and the cross-encoder (~1.5GB) and you're comfortably fine on **8GB+ VRAM**. Runs fine at that budget on an RTX 4060 laptop (8GB) — verified this session. CPU-only works but is slow.
-- **~20GB free disk** for model weights on first run (PE-Core ~9.7GB, SigLIP2 ~4-5GB, translator + cross-encoder ~3GB). See [HF_HOME](#disk-space--model-cache) below if your system drive is tight.
-- Video files (`.mp4` etc.) for the videos you want to index.
+## Mục lục
+1. [Yêu cầu máy](#1-yêu-cầu-máy)
+2. [Cài đặt nhanh (4 bước)](#2-cài-đặt-nhanh-4-bước)
+3. [Dữ liệu trên Hugging Face: tải gì, bỏ gì](#3-dữ-liệu-trên-hugging-face-tải-gì-bỏ-gì)
+4. [Cấu trúc dữ liệu và biến môi trường](#4-cấu-trúc-dữ-liệu-và-biến-môi-trường)
+5. [Dùng giao diện](#5-dùng-giao-diện)
+6. [Nộp bài DRES](#6-nộp-bài-dres)
+7. [Nhiều người dùng chung một server](#7-nhiều-người-dùng-chung-một-server)
+8. [Cấu trúc code](#8-cấu-trúc-code)
+9. [Sự cố thường gặp](#9-sự-cố-thường-gặp)
 
 ---
 
-## Setup
+## 1. Yêu cầu máy
 
-### 1. Install dependencies
-
-```cmd
-python -m venv venv
-venv\Scripts\activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
-
-`requirements.txt` already pins the CUDA 12.6 build of torch via `--extra-index-url`. If you're on CPU-only, edit out the `+cu126` version suffixes for `torch`/`torchvision`/`torchaudio` first.
-
-### 2. Configure
-
-```cmd
-copy .env.example .env
-```
-
-Defaults work out of the box (PE-Core + SigLIP2 native, Milvus Lite storage). See [`.env.example`](.env.example) for what's tunable — model cache directories, VLM (optional, for Q&A answers), contest metadata paths.
-
-### 3. Disk space / model cache
-
-Model weights auto-download from HuggingFace Hub on first run and default into `./hf-cache` (project-relative, see `run.py`) so they can't silently fill a small system drive. Point `HF_HOME` at a different drive in `.env` if you'd rather reuse an existing cache or have more room elsewhere:
-
-```
-HF_HOME=D:\hf-cache
-```
-
-### 4. Add your videos and generate embeddings
-
-Drop your `.mp4` files anywhere and run the batch setup script — it copies them into `data/videos/`, extracts keyframes, and generates PE-Core + SigLIP2 embeddings for all of them:
-
-```cmd
-python scripts/setup_local.py --videos-dir C:\path\to\your\aic\videos
-```
-
-This can take a while for a full contest dataset (hundreds of videos) — keyframe extraction and embedding are both GPU-bound. Progress prints per-video. Re-running is safe: it skips videos/keyframes/embeddings that already exist.
-
-If you're only testing with one or two videos, you can instead use the CLI directly:
-```cmd
-python main.py process path\to\video.mp4 --video-id my_video --save-keyframes
-```
-
-### 5. Start the server
-
-```cmd
-python run.py
-```
-
-First boot downloads and loads all models (~5-10 min depending on connection). You'll see each stage log as it completes, ending with:
-```
-System ready!
-Uvicorn running on http://0.0.0.0:8000
-```
-
-Subsequent restarts are fast (~1 min) since models are cached.
-
-### 6. Search
-
-Open **http://localhost:8000/ui** — pick a mode (TKIS / Q&A / TRAKE), type a query, hit Search.
+| Thứ | Tối thiểu | Ghi chú |
+|---|---|---|
+| GPU | NVIDIA **≥ 8 GB VRAM** | server dùng ~4 GB (chỉ mục + mô hình văn bản + bộ dịch). Đã chạy ổn trên RTX 4060 laptop 8 GB |
+| Python | 3.10+ | |
+| Ổ đĩa | **~70 GB** (không video) · **~420 GB** (đủ video) | + ~12 GB mô hình; lúc giải nén cần thêm 66 GB tạm cho zip. Xem [mục 3](#3-dữ-liệu-trên-hugging-face-tải-gì-bỏ-gì) |
+| Mạng | lần đầu | tải dữ liệu + mô hình; sau đó chạy offline được |
 
 ---
 
-## Using the System
+## 2. Cài đặt nhanh (4 bước)
 
-### Web UI
-| URL | Purpose |
-|-----|---------|
-| http://localhost:8000/ui | Search interface — TKIS/Q&A/TRAKE, thumbnails, confidence scores |
-| http://localhost:8000/process | Upload/process a video from the browser |
-| http://localhost:8000/docs | Swagger API docs |
-| http://localhost:8000/api/status | System health & frame count |
+**Bước 1 — Lấy code** (nhánh `final-round-pecore-dres`; repo riêng tư thì cần được cấp quyền):
 
-### Key API Endpoints
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| `POST` | `/api/search` | Text/fusion search (KIS) |
-| `POST` | `/api/search-image` | Search by uploaded image |
-| `POST` | `/api/qa/search` | KIS + VLM answer (Q&A mode) |
-| `POST` | `/api/trake` | Multi-event temporal alignment |
-| `GET` | `/api/frame/{video_id}/{frame_idx}` | Serve a frame as JPEG (seeks the source video live) |
-| `GET` | `/api/video/{video_id}` | Stream the source video for playback |
+```bash
+git clone -b final-round-pecore-dres https://github.com/Tinhcautoan/aic2026.git aicv5
+cd aicv5
+```
+
+**Bước 2 — Cài thư viện.** Cài PyTorch có CUDA **trước** (chọn đúng bản CUDA của máy), rồi các thư viện gọn của server:
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+pip install -r requirements-server.txt
+```
+
+> `requirements.txt` là bộ đầy đủ của hệ thống cũ (Milvus, BM25, OCR, ASR…) — **không cần** cho server này.
+
+**Bước 3 — Tải dữ liệu từ Hugging Face** (tải + giải nén + kiểm tra, tự nối tiếp khi đứt mạng, chạy lại bao nhiêu lần cũng được):
+
+```bash
+# Windows
+python scripts\setup_from_hf.py D:\aic_data --delete-zips
+# Linux
+python3 scripts/setup_from_hf.py /data/aic --delete-zips
+```
+
+| Tuỳ chọn | Tác dụng |
+|---|---|
+| *(không có)* | tải `index_all/` + `keyframes_all/` + `videos/` |
+| `--no-videos` | bỏ video (tiết kiệm 350 GB) — vẫn tìm và xem ảnh được, **không** xem / tua video được |
+| `--delete-zips` | xoá 7 file zip keyframe sau khi giải nén (tiết kiệm 66 GB) |
+
+Kết thúc, script in ra kiểm tra, ví dụ:
+```
+chỉ mục: 1487 video, 318,809 khung
+keyframe: 234,083 ảnh; khung thiếu ảnh: 0 (khung dày của N, cắt từ video khi cần: 84,726)
+video: có 1487/1487
+OK
+```
+
+**Bước 4 — Chạy server** rồi mở **http://localhost:8000** khi cửa sổ hiện `Engine ready` (~1 phút; lần đầu lâu hơn vì tự tải ~12 GB mô hình vào `<DATA>/hf-cache`):
+
+```bash
+# Windows
+start_server_hf.bat D:\aic_data
+# Linux
+bash start_server.sh /data/aic          # thêm cổng khác: bash start_server.sh /data/aic 8001
+```
+
+Kiểm tra nhanh: http://localhost:8000/api/status phải trả `"ready": true, "frames": 318809, "videos": 1487`.
 
 ---
 
-## Project Structure
+## 3. Dữ liệu trên Hugging Face: tải gì, bỏ gì
 
-```
-aicv5/
-├── run.py                          # Entry point (Milvus Lite / PersistentVectorStore, no Docker needed)
-├── main.py                         # CLI: serve / process / search / evaluate / status
-├── requirements.txt
-│
-├── config/settings.py              # All tunables
-│
-├── embedding/                      # Dual dense-encoder engine
-│   ├── pecore_encoder.py           # PE-Core-bigG-14-448 (primary, 1280d)
-│   ├── siglip2_encoder.py          # SigLIP2 (1152d native / pca / truncate modes)
-│   ├── clip_encoder.py, tulip_encoder.py   # Alternate "clip slot" encoders (USE_PECORE=False to switch)
-│   └── hybrid_engine.py            # Wires the active encoder pair together
-│
-├── retrieval/                      # Storage, fusion, reranking, confidence
-│   ├── milvus_store.py             # Milvus Lite vector store (default)
-│   ├── persistent_store.py         # File-based numpy fallback, no server needed
-│   ├── local_store.py              # In-memory numpy store (ephemeral, tests)
-│   ├── reranker.py                 # Stage 1: RRF + CombMNZ dense fusion
-│   ├── bm25_search.py              # Stage 2: sparse text search (OCR/ASR/object/media-info)
-│   ├── cross_encoder_reranker.py   # Stage 4: BGE-reranker text rerank
-│   ├── trake_aligner.py            # DP-based multi-event temporal alignment
-│   ├── result_dedup.py             # Stage 6: NMS + scene-bucket dedup
-│   ├── scoring.py                  # Stage 7: score banding + calibrated confidence
-│   └── hybrid_fusion.py            # Orchestrates the full funnel
-│
-├── preprocessing/                  # Video ingestion
-│   ├── keyframe_extractor.py       # Feature-diff scene detection
-│   └── pipeline.py                 # Keyframes → OCR/ASR → embed → store
-│
-├── api/app.py                      # FastAPI backend, all endpoints + lifespan startup
-├── frontend/index.html             # Web UI
-├── scripts/setup_local.py          # Bulk video ingestion for a fresh checkout
-│
-└── data/                           # Not committed (see .gitignore) — created by setup
-    ├── videos/                     # Your .mp4 files
-    ├── keyframes/                  # Extracted frames (auto)
-    └── persistent_store/           # Fallback embeddings store (auto, if Milvus Lite unavailable)
+Toàn bộ dữ liệu ở dataset **[`5clnl/idk`](https://huggingface.co/datasets/5clnl/idk)**. Server **chỉ cần 3 thư mục**:
+
+| Thư mục | Nội dung | Dung lượng | Cần? |
+|---|---|---|---|
+| **`index_all/`** | chỉ mục PE-Core: `emb.npy` (318.809 × 1280 fp16), `frames.npy`, `vid.npy`, `ms.npy`, `videos.json` | 0,8 GB | 🔴 **bắt buộc** — thiếu là không tìm được |
+| **`keyframes_all/`** | 7 zip = **234.083** ảnh keyframe + `manifest.json` | 66 GB (giải nén thêm 66 GB) | 🟠 **rất nên** — ảnh trong lưới kết quả |
+| **`videos/`** | **1.487** video (`.mp4` + `.mov` của N) | 350 GB | 🟠 **nên** — xem / tua video để chọn đúng thời điểm khi nộp |
+
+Chi tiết `keyframes_all/`:
+
+| File | Ảnh | Dung lượng |
+|---|---|---|
+| `keyframes_M_1of4.zip` … `keyframes_M_4of4.zip` | 99.877 (video M) | 36,8 GB |
+| `keyframes_N_S_1of1.zip` | 20.384 (video N, S) | 8,1 GB |
+| `keyframes_old_L21-L30.zip` | 112.205 (video cũ L21–L30) | 20,7 GB |
+| `keyframes_old_extra_1of1.zip` | 1.617 (11 video cũ bổ sung) | 0,3 GB |
+
+**KHÔNG cần tải** (dữ liệu trung gian, đã được gộp vào 3 thư mục trên):
+`keyframes_batch2/`, `keyframes_S01/`, `keyframes_old_missing/`, `embeddings_pecore/`, `embeddings_pecore_N_dense/`, `embeddings_pecore_old_missing/`.
+Dataset [`Liamislazy/idk`](https://huggingface.co/datasets/Liamislazy/idk) là nguồn gốc của dữ liệu **cũ** (L21–L30) — cũng **không cần**, nội dung đã nằm trong `5clnl/idk` (`keyframes.zip` trùng từng byte với `keyframes_old_L21-L30.zip`).
+
+**Mô hình** (không nằm trong dataset — server tự tải ở lần chạy đầu):
+`timm/PE-Core-bigG-14-448` (~9 GB) và `vinai/vinai-translate-vi2en-v2` (~3 GB).
+
+**Ảnh khung dày của video N** (84.726 khung, mỗi 2 giây) **không có ảnh trên HF** — khi cần, server tự cắt ảnh từ video (hơi chậm hơn). Nếu dùng `--no-videos`, các khung này hiện "không có ảnh" nhưng vẫn chọn và nộp được.
+
+Tải bằng tay một phần (không qua script):
+
+```bash
+hf download 5clnl/idk --repo-type dataset --include "index_all/*"      --local-dir <DATA>
+hf download 5clnl/idk --repo-type dataset --include "keyframes_all/*"  --local-dir <DATA>   # rồi giải nén TẤT CẢ zip, PHẲNG, vào <DATA>/keyframes
+hf download 5clnl/idk --repo-type dataset --include "videos/L26_V156.mp4" --local-dir <DATA>   # một video lẻ
 ```
 
 ---
 
-## Troubleshooting
+## 4. Cấu trúc dữ liệu và biến môi trường
 
-### CUDA out of memory / crash on startup with no traceback
-On tight VRAM budgets (8GB and under), loading a large fp32 checkpoint straight onto the GPU before converting to fp16 can exceed free memory and crash the process natively (no Python exception). The encoders already load CPU→fp16→GPU to avoid this (`embedding/pecore_encoder.py`, `preprocessing/keyframe_extractor.py`) — if you hit this again after modifying those files, check you didn't reintroduce a `device=cuda` load-time argument to `create_model_and_transforms`.
+```
+<DATA>/
+├── index_all/     emb.npy  frames.npy  vid.npy  ms.npy  videos.json
+├── keyframes/     M01_V001_frame_000000.jpg  L21_V001_frame_000035.jpg ...   (234.083 ảnh, phẳng, không thư mục con)
+├── videos/        M01_V001.mp4  N001-V001.mov  L21_V001.mp4 ...              (1.487 file)
+└── hf-cache/      mô hình (tự tải)
+```
 
-If you're still tight on VRAM, set `CROSS_ENCODER_ENABLED=False` in `.env` — Stage 4 becomes a no-op and search still works off dense fusion + BM25.
+`start_server_hf.bat` / `start_server.sh` đặt sẵn các biến này từ `<DATA>`; chạy kiểu khác thì tự đặt:
 
-### Windows: process crashes under memory pressure, no error logged
-Usually a near-full system drive — Windows needs pagefile headroom during large model loads. Check free space on your `HF_HOME` drive and the drive Windows itself is installed on.
+| Biến | Giá trị | Ghi chú |
+|---|---|---|
+| `INDEX_DIR` | `<DATA>/index_all` | bắt buộc |
+| `KEYFRAME_DIRS` | `<DATA>/keyframes` | nhiều thư mục: ngăn cách bằng `;`, tìm theo thứ tự |
+| `VIDEO_DIR` | `<DATA>/videos` | |
+| `EXTRA_VIDEO_DIRS` | *(trống)* | thư mục video phụ, ngăn cách `;`. Video cũ thiếu có thể được tải lẻ từ HF vào thư mục phụ đầu tiên |
+| `HF_HOME` | `<DATA>/hf-cache` | nơi lưu mô hình |
+| `HF_HUB_OFFLINE=1` | *(tuỳ chọn)* | sau khi đã có mô hình: chạy không cần mạng |
+| `RESULT_MAX_PER_VIDEO` | `6` | tối đa khung của một video trong lưới KIS/Q&A (0 = không giới hạn) |
+| `DRES_BASE_URL` | `https://eventretrieval.one` | địa chỉ DRES |
 
-### Search results have no thumbnails
-The `/api/frame/{video_id}/{frame_idx}` endpoint seeks the *source video file* live (not a static keyframe image) — it needs your `.mp4` to be discoverable under `data/videos/` (or wherever `VIDEO_DIR` points). If videos aren't there yet, thumbnails 404 silently; ranking/search still works.
+Mọi thông số khác: [`config/settings.py`](config/settings.py) (mục *Lean PE-Core-only engine* và *DRES*).
+Ảnh của một khung là `<video>_frame_<chỉ số frame 6 chữ số>.jpg`; không có ảnh thì server lấy keyframe gần nhất, rồi mới cắt từ video.
 
-### BM25 / cross-encoder contribute nothing
-Both stages need per-frame text (OCR, ASR transcript, detected objects, or contest media-info JSON) to have anything to match against. A purely visual frame with no text has nothing for these stages to score — dense search (PE-Core + SigLIP2) still ranks it normally. Check `pipeline.diagnostics()['cross_encoder']['text_hit_rate']` — below ~0.3 means the stage is mostly dead weight for your data.
+---
 
-### "Failed to connect to Milvus" / Milvus Lite init failed
-Falls back automatically to `PersistentVectorStore` (file-based, `data/persistent_store/`). No action needed unless you specifically want Milvus's ANN indexing at larger scale.
+## 5. Dùng giao diện
 
-### Port 8000 already in use
-```cmd
-taskkill /F /IM python.exe
+**Thanh trên cùng:** tab loại câu (Textual KIS / Video KIS / Q&A / TRAKE) · ô **Mở video** (gõ `L26_V156`) · đồng hồ · task DRES đang chạy · chip **DRES** · 🧾 nhật ký nộp · ⚙ cài đặt.
+
+**Tìm:** gõ mô tả rồi **Enter** (Shift+Enter = xuống dòng). Bản dịch tiếng Anh hiện dưới ô — sửa bản dịch rồi Enter để tìm lại bằng bản đã sửa. Gõ thẳng tiếng Anh thì không qua bộ dịch.
+
+**KIS / Q&A**
+1. Bấm một khung trong lưới → thanh dưới hiện **mã video**, **ms ⇄ frame** (sửa ô này ô kia tự đổi).
+2. **▶ Xem / chỉnh** → video mở đúng thời điểm → tua (−1 s / −0,1 s / +0,1 s / +1 s hoặc gõ ms / frame) → **Chọn thời điểm này**.
+3. Q&A: gõ câu trả lời vào ô ở thanh dưới.
+4. **NỘP ĐÁP ÁN** (Ctrl+Shift+Enter).
+
+**TRAKE**
+1. Dán các sự kiện, mỗi dòng một sự kiện (hoặc đoạn `(1) … (2) … (3) …`) → **Ctrl+Enter**.
+2. Mỗi hàng kết quả = một video + khung hệ thống căn cho từng sự kiện (kèm 8 khung thay thế mỗi sự kiện).
+3. **Chọn video này · xem & chỉnh khung ▶** → tua tới khoảnh khắc → **＋ Thêm khung này**, sửa / bỏ từng khung → **NỘP ĐÁP ÁN**.
+
+**⚙ Cài đặt:** cỡ ảnh · số kết quả · tối đa khung của một video · khoảng ± giây cho KIS · đơn vị FRAME_ID của TRAKE · tự tìm khi ngừng gõ · theo task DRES · hỏi xác nhận trước khi nộp.
+Sửa `frontend/index.html` không cần khởi động lại server (Ctrl+F5); sửa code Python thì phải chạy lại.
+
+Hướng dẫn chi tiết từng nút: [HUONG_DAN_CHUNG_KET.md](HUONG_DAN_CHUNG_KET.md).
+
+---
+
+## 6. Nộp bài DRES
+
+1. Bấm chip **DRES** → đăng nhập bằng username/mật khẩu của đội **hoặc** dán `sessionId`. Phiên được lưu ở `submission/dres_session.json` (khởi động lại không phải đăng nhập lại — **đừng** đưa file này lên git).
+2. Mỗi loại câu có **evaluation riêng**; giao diện tự chọn theo tab. Dòng "Nộp vào: …" ở thanh dưới cho biết đang nộp vào đâu.
+3. Mọi lần nộp được ghi vào `submission/dres_log.jsonl`; hệ thống chặn nộp trùng.
+
+| Loại | Nội dung gửi | Đơn vị thời gian |
+|---|---|---|
+| KIS | `mediaItemName = <VIDEO_ID>`, `start = end` | **ms** |
+| Q&A | `QA-<ĐÁP ÁN>-<VIDEO_ID>-<ms>` | **ms** |
+| TRAKE | `TR-<VIDEO_ID>-<f1>,<f2>,…` (tăng dần) | **chỉ số frame** (đã xác nhận trên DRES: nộp ms bị chấm sai, nộp frame được chấm đúng) |
+
+| Lỗi | Nghĩa |
+|---|---|
+| `412 … does include non-temporal information` | nộp nhầm evaluation (vd. TRAKE vào evaluation KIS) |
+| `Could not find media item … collection name` | điền **Tên collection** trong hộp DRES |
+| `401` | phiên hết hạn → đăng nhập lại |
+
+Các endpoint DRES chỉ nhận yêu cầu từ **chính máy chạy server** (`DRES_ALLOW_REMOTE=false`). Cả đội dùng một tài khoản → thống nhất **một người bấm nộp**.
+
+---
+
+## 7. Nhiều người dùng chung một server
+
+Server chỉ nghe trên `127.0.0.1`. Người khác vào bằng đường hầm SSH (không mở cổng ra internet):
+
+```bash
+ssh -N -L 8000:127.0.0.1:8000 <user>@<địa chỉ server>
+```
+
+rồi mở http://localhost:8000 trên máy mình. Ai vào qua đường hầm cũng nộp được bằng phiên DRES của server.
+
+---
+
+## 8. Cấu trúc code
+
+| Đường dẫn | Vai trò |
+|---|---|
+| [`api/app.py`](api/app.py) | server FastAPI: `/api/search`, `/api/trake`, `/api/thumb`, `/api/video`, `/api/dres/*`, `/api/status` |
+| [`retrieval/frame_index.py`](retrieval/frame_index.py) | chỉ mục trên GPU, tìm top-k + lọc trùng theo thời gian + giới hạn khung/video |
+| [`retrieval/trake_engine.py`](retrieval/trake_engine.py) | TRAKE: xếp hạng video theo sự kiện + quy hoạch động |
+| [`retrieval/thumbs.py`](retrieval/thumbs.py) | ảnh thu nhỏ (JPEG → keyframe gần nhất → cắt từ video) + tìm file video |
+| [`retrieval/video_fetch.py`](retrieval/video_fetch.py) | tải lẻ một video cũ từ `videos.zip` trên HF khi máy không có |
+| [`retrieval/dres_client.py`](retrieval/dres_client.py) | đăng nhập / phiên / evaluation / task / nộp bài DRES |
+| [`embedding/pecore_text.py`](embedding/pecore_text.py) | phần mã hoá văn bản của PE-Core |
+| [`embedding/translate_fast.py`](embedding/translate_fast.py) | dịch Việt → Anh theo câu, có nhớ đệm |
+| [`frontend/index.html`](frontend/index.html) | toàn bộ giao diện (một file) |
+| [`config/settings.py`](config/settings.py) | cấu hình, đè được bằng biến môi trường |
+| [`scripts/setup_from_hf.py`](scripts/setup_from_hf.py) | tải dữ liệu từ HF |
+| `scripts/build_index.py`, `ingest_dense.py`, `ingest_old_missing.py` | dựng lại chỉ mục |
+| `scripts/dense_sample.py`, `make_dense_thumbs.py` | lấy mẫu khung dày (N) |
+| `notebooks/`, `colab_*.ipynb` | Colab: tách keyframe, tính embedding, gom dữ liệu lên HF |
+| `START_CONTEST.bat` | trình chạy của máy thi (đường dẫn D:/E: riêng của máy đó) |
+| `api/app_legacy.py`, `README_LEGACY.md` | hệ thống cũ (PE-Core + SigLIP2 + BM25 + Milvus), giữ để tham khảo |
+
+Kiểm thử (dùng DRES giả, không chạm server thật):
+
+```bash
+python -m pytest tests/test_lean_engine.py tests/test_dres_client.py tests/test_dres_task.py tests/test_video_fetch.py tests/test_build_index.py
 ```
 
 ---
 
-## Key Formulas
+## 9. Sự cố thường gặp
 
-- **Keyframe differencing**: `feature_diff = ||f_current - f_prev|| / ||f_prev||` (threshold = 0.6)
-- **Dense fusion**: `Final(d) = α·RRF(d) + (1-α)·CombMNZ(d)`, α=0.5, RRF k=60 (`retrieval/reranker.py`)
-- **Confidence** (separate from ranking, `retrieval/scoring.py`): `sigmoid(0.6·sep + 0.9·margin − 1.5) · rel_i^γ`, where `sep`/`margin` are the top candidate's separation from the pool in standard deviations — a flat, undiscriminating pool reports low confidence even for a perfect rank-1 match
-- **TRAKE alignment**: `dp[t][j] = s_t(F[j]) + max{dp[t-1][k] − λ(F[j]−F[k]) : F[k] < F[j]}`, O(N·M) via prefix-max
-
----
-
-## Credits
-
-Vo Thanh Nhan, Doan Ngoc Binh Minh, Pi-Dieu Sam, Hai Dang Nguyen, Khoi-Nguyen Nguyen
-VNU-HCM High School for the Gifted — Team
+| Hiện tượng | Cách xử lý |
+|---|---|
+| Trang không mở | server chưa chạy / đã tắt → chạy lại bước 4, đợi `Engine ready` |
+| `Không thấy chỉ mục ở …` | sai `<DATA>` hoặc chưa tải → `python scripts/setup_from_hf.py <DATA>` |
+| "Server đang nạp mô hình…" | đợi ~1 phút (lần đầu lâu hơn vì tải mô hình) |
+| Lỗi CUDA / hết VRAM | cài đúng bản PyTorch có CUDA; đóng chương trình khác đang dùng GPU |
+| Kết quả tiếng Việt rất tệ | bộ dịch không nạp được (xem log) → gõ tiếng Anh, hoặc kiểm tra mô hình `vinai` trong `hf-cache` |
+| Ảnh "không có ảnh" | thiếu keyframe → kiểm tra `KEYFRAME_DIRS`; khung dày N cần có video |
+| Video không phát | thiếu file trong `VIDEO_DIR` → tải lẻ: `hf download 5clnl/idk --repo-type dataset --include "videos/<ID>.*" --local-dir <DATA>` |
+| TRAKE mãi "đúng một phần" | có khung chưa đúng khoảnh khắc: giữ khung chắc chắn, thay từng khung còn lại |
+| Chip DRES đỏ | chưa đăng nhập / phiên hết hạn |

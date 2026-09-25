@@ -107,7 +107,7 @@ Màn hình **không bao giờ tự cuộn**; dải keyframe trong cửa sổ vid
 ├── index_all/        emb.npy  frames.npy  vid.npy  ms.npy  videos.json
 ├── keyframes/        M01_V001_frame_000000.jpg  L21_V001_frame_000035.jpg  ...  (234.083 ảnh, PHẲNG, không thư mục con)
 ├── videos/           M01_V001.mp4  N001-V001.mov  L21_V001.mp4  ...          (1.487 file)
-└── hf-cache/         mô hình PE-Core + bộ dịch (tự tải ở lần chạy đầu, ~6 GB)
+└── hf-cache/         mô hình PE-Core + bộ dịch (tự tải ở lần chạy đầu, ~12 GB)
 ```
 
 Server tìm dữ liệu qua **biến môi trường** (script chạy đặt sẵn, chỉ cần truyền `<DATA>`):
@@ -142,7 +142,7 @@ python scripts/setup_from_hf.py /data/aic                  # Linux
 python scripts\setup_from_hf.py D:\aic_data                # Windows
 #   thêm --no-videos  (không tải video)   /   --delete-zips  (xóa zip sau khi giải nén)
 
-# 4) chạy (lần đầu tự tải mô hình ~6 GB), rồi mở http://localhost:8000
+# 4) chạy (lần đầu tự tải mô hình ~12 GB), rồi mở http://localhost:8000
 bash start_server.sh /data/aic                             # Linux
 start_server_hf.bat D:\aic_data                            # Windows
 ```
