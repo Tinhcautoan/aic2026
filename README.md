@@ -100,7 +100,7 @@ Toàn bộ dữ liệu ở dataset **[`5clnl/idk`](https://huggingface.co/datase
 
 | Thư mục | Nội dung | Dung lượng | Cần? |
 |---|---|---|---|
-| **`index_all/`** | chỉ mục PE-Core: `emb.npy` (318.809 × 1280 fp16), `frames.npy`, `vid.npy`, `ms.npy`, `videos.json` | 0,8 GB | 🔴 **bắt buộc** — thiếu là không tìm được |
+| **`index_all/`** | **embedding PE-Core** của mọi khung (`emb.npy`, 318.809 × 1280 fp16) + bảng tra `frames.npy`, `vid.npy`, `ms.npy`, `videos.json` — xem [Embedding PE-Core ở đâu](#embedding-pe-core-ở-đâu) | 0,8 GB | 🔴 **bắt buộc** — thiếu là không tìm được |
 | **`keyframes_all/`** | 7 zip = **234.083** ảnh keyframe + `manifest.json` | 66 GB (giải nén thêm 66 GB) | 🟠 **rất nên** — ảnh trong lưới kết quả |
 | **`videos/`** | **1.487** video (`.mp4` + `.mov` của N) | 350 GB | 🟠 **nên** — xem / tua video để chọn đúng thời điểm khi nộp |
 
@@ -114,8 +114,44 @@ Chi tiết `keyframes_all/`:
 | `keyframes_old_extra_1of1.zip` | 1.617 (11 video cũ bổ sung) | 0,3 GB |
 
 **KHÔNG cần tải** (dữ liệu trung gian, đã được gộp vào 3 thư mục trên):
-`keyframes_batch2/`, `keyframes_S01/`, `keyframes_old_missing/`, `embeddings_pecore/`, `embeddings_pecore_N_dense/`, `embeddings_pecore_old_missing/`.
+`keyframes_batch2/`, `keyframes_S01/`, `keyframes_old_missing/`, `embeddings_pecore/`, `embeddings_pecore_N_dense/`, `embeddings_pecore_old_missing/` (embedding gốc, đã gộp vào `index_all/emb.npy` — chỉ cần khi dựng lại chỉ mục).
 Dataset [`Liamislazy/idk`](https://huggingface.co/datasets/Liamislazy/idk) là nguồn gốc của dữ liệu **cũ** (L21–L30) — cũng **không cần**, nội dung đã nằm trong `5clnl/idk` (`keyframes.zip` trùng từng byte với `keyframes_old_L21-L30.zip`).
+
+### Embedding PE-Core ở đâu
+
+**Embedding PE-Core đã có sẵn trên HF — không cần tự tính lại.** Có 2 dạng:
+
+**a) Bản đã gộp — server dùng bản này:** `index_all/emb.npy` (0,82 GB). Đây **chính là** embedding PE-Core-bigG-14-448 của **cả 318.809 khung / 1.487 video**: float16, 1280 chiều, đã chuẩn hoá L2. Dòng thứ *i* của `emb.npy` ứng với dòng thứ *i* của:
+
+| File | Cho biết |
+|---|---|
+| `vid.npy` | video nào (vị trí trong `videos.json` → `videos[vid[i]]["id"]`) |
+| `frames.npy` | chỉ số frame gốc trong video |
+| `ms.npy` | thời điểm (ms) |
+| `videos.json` | danh sách video: `id`, `fps`, `start`/`end` (khúc dòng của video đó), `source` (`batch2` = mới, `batch1-old` = cũ), `dense` (video N có khung lấy mẫu dày) |
+
+Đọc thử bằng Python:
+
+```python
+import json, numpy as np
+d = "<DATA>/index_all"
+emb = np.load(f"{d}/emb.npy", mmap_mode="r")          # [318809, 1280] float16
+frames, vid, ms = np.load(f"{d}/frames.npy"), np.load(f"{d}/vid.npy"), np.load(f"{d}/ms.npy")
+videos = json.load(open(f"{d}/videos.json", encoding="utf-8"))["videos"]
+i = 0
+print(videos[vid[i]]["id"], frames[i], ms[i], emb[i][:5])
+```
+
+**b) Bản gốc chưa gộp** — chỉ cần khi muốn **dựng lại chỉ mục** (`scripts/build_index.py`, `ingest_dense.py`, `ingest_old_missing.py`):
+
+| Nơi | Nội dung | Dung lượng |
+|---|---|---|
+| `5clnl/idk/embeddings_pecore/` | 614 `.npz`, mỗi file một video mới (M, N, S) — keyframe | 0,62 GB |
+| `5clnl/idk/embeddings_pecore_N_dense/` | 287 `.npz` — khung lấy mẫu mỗi 2 giây của video N | 0,44 GB |
+| `5clnl/idk/embeddings_pecore_old_missing/` | 11 `.npz` — 11 video cũ từng bị thiếu | 0,01 GB |
+| `Liamislazy/idk/embeddings_pecore.pkl` | video cũ L21–L30 (862 video, 112.205 khung) | 1,28 GB |
+
+`index_all/emb.npy` = (a) gộp từ toàn bộ (b). `embeddings_c2lip.pkl`, `embeddings_finevit.pkl` trên `Liamislazy/idk` là của mô hình khác — server này không dùng.
 
 **Mô hình** (không nằm trong dataset — server tự tải ở lần chạy đầu):
 `timm/PE-Core-bigG-14-448` (~9 GB) và `vinai/vinai-translate-vi2en-v2` (~3 GB).
