@@ -370,3 +370,19 @@ def test_dres_post_needs_json_content_type_and_same_origin(api):
     r = api.post("/api/dres/logout", json={}, headers={"Origin": "https://evil.example"})
     assert r.status_code == 403
     assert api.post("/api/dres/logout", json={}).status_code == 200
+
+
+def test_video_lookup_spans_several_folders_and_notices_files_added_later(tmp_path):
+    from retrieval.thumbs import ThumbService
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir(); b.mkdir()
+    (a / "M01_V001.mp4").write_bytes(b"x")
+    th = ThumbService([], a, extra_video_dirs=[b, tmp_path / "does-not-exist"])
+    assert th.video_path("M01_V001").parent == a
+    assert th.video_path("L21_V001") is None                      # not there yet
+    (b / "L21_V001.mp4").write_bytes(b"y")                        # e.g. extracted while the server runs
+    assert th.video_path("L21_V001") is None                      # a miss is only re-scanned every RESCAN_SEC ...
+    th._last_scan -= th.RESCAN_SEC + 1
+    assert th.video_path("L21_V001").parent == b                  # ... and then it is found without a restart
+    assert th.video_path("L21_V001.mp4").name == "L21_V001.mp4"   # also by file name
+    th.close()

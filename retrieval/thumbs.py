@@ -16,6 +16,7 @@ from __future__ import annotations
 import io
 import os
 import threading
+import time
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -28,10 +29,14 @@ VIDEO_EXT = (".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v")
 
 
 class ThumbService:
+    RESCAN_SEC = 20          # a missing video triggers a re-scan at most this often (files may have just been added)
+
     def __init__(self, keyframe_dirs: Sequence[Path], video_dir: Path, width: int = 384,
-                 cache_items: int = 6000, index=None, workers: int = 6):
+                 cache_items: int = 6000, index=None, workers: int = 6, extra_video_dirs: Sequence[Path] = ()):
         self.dirs = [Path(d) for d in keyframe_dirs if str(d).strip()]
         self.video_dir = Path(video_dir)
+        self.video_dirs = [self.video_dir] + [Path(d) for d in extra_video_dirs if str(d).strip()]
+        self._last_scan = 0.0
         self.width = int(width)
         self.index = index                                   # FrameIndex (optional) for nearest-keyframe lookup
         self._cache: "OrderedDict[Tuple[str, int], bytes]" = OrderedDict()
@@ -43,19 +48,29 @@ class ThumbService:
 
     # ---------------------------------------------------------------- videos
 
+    def _scan_videos(self) -> None:
+        found = {}
+        for d in self.video_dirs:
+            try:
+                if not d.is_dir():
+                    continue
+                for root, _, files in os.walk(d):
+                    for f in files:
+                        if f.lower().endswith(VIDEO_EXT):
+                            found.setdefault(Path(f).stem, Path(root) / f)
+            except OSError as e:                      # a drive that dropped out: keep what the others gave
+                logger.warning(f"video folder {d} unreadable: {e}")
+        self._videos = found
+        self._last_scan = time.time()
+        logger.info(f"ThumbService: {len(found)} video files under {[str(d) for d in self.video_dirs]}")
+
     def video_path(self, video_id: str) -> Optional[Path]:
-        if self._videos is None:
+        stem = Path(video_id).stem
+        if self._videos is None or (stem not in self._videos and time.time() - self._last_scan > self.RESCAN_SEC):
             with self._vlock:
-                if self._videos is None:
-                    found = {}
-                    if self.video_dir.is_dir():
-                        for root, _, files in os.walk(self.video_dir):
-                            for f in files:
-                                if f.lower().endswith(VIDEO_EXT):
-                                    found.setdefault(Path(f).stem, Path(root) / f)
-                    self._videos = found
-                    logger.info(f"ThumbService: {len(found)} video files under {self.video_dir}")
-        return self._videos.get(Path(video_id).stem)
+                if self._videos is None or (stem not in self._videos and time.time() - self._last_scan > self.RESCAN_SEC):
+                    self._scan_videos()
+        return self._videos.get(stem)
 
     # ----------------------------------------------------------------- cache
 

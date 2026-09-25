@@ -78,7 +78,9 @@ def load_engine(eng: Engine) -> None:
                 eng.translator = None
 
         dirs = [d for d in str(settings.KEYFRAME_DIRS).split(";") if d.strip()]
-        eng.thumbs = ThumbService(dirs, settings.VIDEO_DIR, settings.THUMB_WIDTH, settings.THUMB_CACHE_ITEMS, index=eng.index)
+        extra = [d for d in str(settings.EXTRA_VIDEO_DIRS).split(";") if d.strip()]
+        eng.thumbs = ThumbService(dirs, settings.VIDEO_DIR, settings.THUMB_WIDTH, settings.THUMB_CACHE_ITEMS, index=eng.index,
+                                  extra_video_dirs=extra)
 
         eng.text.warmup()
         if eng.translator is not None:

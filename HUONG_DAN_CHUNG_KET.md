@@ -21,6 +21,8 @@ Script kiểm từng shard (hữu hạn, chuẩn hóa, frame tăng dần, và **
 ## 2. Chạy
 `START_CONTEST.bat` (hoặc `START_CONTEST_ALL.bat` cho cả bộ cũ + mới) rồi mở http://localhost:8000 sau ~1 phút.
 Biến môi trường chính: `INDEX_DIR`, `KEYFRAME_DIRS` (thư mục ảnh, ngăn cách bằng `;`), `VIDEO_DIR`, `HF_HOME`.
+`EXTRA_VIDEO_DIRS` (thêm thư mục video, ngăn cách bằng `;`, ví dụ video bộ cũ giải nén ở ổ khác): video mới được thêm vào các thư mục này
+được tự tìm thấy sau tối đa ~20 giây, không cần khởi động lại.
 
 - Tìm bằng tiếng Việt hoặc tiếng Anh (tiếng Anh nhanh hơn ~0,3 s vì bỏ bước dịch); `Ctrl+Enter` tìm.
 - KIS / Q&A: chọn một khung → **NỘP**. TRAKE: dán các sự kiện `(1) … (2) …`, hệ thống căn chỉnh theo thứ tự thời gian

@@ -241,6 +241,8 @@ class Settings(BaseSettings):
     # in none of them falls back to its nearest indexed keyframe, then to the video.
     KEYFRAME_DIRS: str = ""
     THUMB_WIDTH: int = 384
+    # More folders with videos besides VIDEO_DIR, ';'-separated (e.g. the old-corpus videos extracted on another drive).
+    EXTRA_VIDEO_DIRS: str = ""
     THUMB_CACHE_ITEMS: int = 6000
 
     # Text side. PE-Core is English-only, so Vietnamese is translated first (on GPU).

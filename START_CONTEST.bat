@@ -8,6 +8,7 @@ set PYTHONIOENCODING=utf-8
 set INDEX_DIR=D:\aic_index_all
 set KEYFRAME_DIRS=D:\aic_batch2_keyframes;D:\aic_old_keyframes;E:\AIC2026\keyframes_backup
 set VIDEO_DIR=E:\AIC2026\aicv5\data\videos
+set EXTRA_VIDEO_DIRS=D:\aic_old_videos
 echo Dang nap mo hinh va index (khoang 1 phut). Khi thay "Engine ready" thi mo trinh duyet: http://localhost:8000
 python -m uvicorn api.app:app --host 127.0.0.1 --port 8000 --log-level info
 pause
