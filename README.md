@@ -35,7 +35,7 @@ TRAKE: chấm từng sự kiện → xếp hạng video (trung bình điểm cao
 |---|---|---|
 | GPU | NVIDIA **≥ 8 GB VRAM** | server dùng ~4 GB (chỉ mục + mô hình văn bản + bộ dịch). Đã chạy ổn trên RTX 4060 laptop 8 GB |
 | Python | 3.10+ | |
-| Ổ đĩa | **~70 GB** (không video) · **~420 GB** (đủ video) | + ~12 GB mô hình; lúc giải nén cần thêm 66 GB tạm cho zip. Xem [mục 3](#3-dữ-liệu-trên-hugging-face-tải-gì-bỏ-gì) |
+| Ổ đĩa | **~67 GB** (không video) · **~417 GB** (đủ video) | + ~12 GB mô hình + tối đa 45 GB tạm khi giải nén. Xem [mục 3](#3-dữ-liệu-trên-hugging-face-tải-gì-bỏ-gì) |
 | Mạng | lần đầu | tải dữ liệu + mô hình; sau đó chạy offline được |
 
 ---
@@ -69,9 +69,12 @@ python3 scripts/setup_from_hf.py /data/aic --delete-zips
 
 | Tuỳ chọn | Tác dụng |
 |---|---|
-| *(không có)* | tải `index_all/` + `keyframes_all/` + `videos/` |
+| *(không có)* | tải `index_all/` + `keyframes_all/` (7 zip, tự giải nén) + `videos/` (1.487 file) |
+| `--videos-zip` | tải video dạng **9 zip** (`videos_all/`) thay vì 1.487 file, tự giải nén |
 | `--no-videos` | bỏ video (tiết kiệm 350 GB) — vẫn tìm và xem ảnh được, **không** xem / tua video được |
-| `--delete-zips` | xoá 7 file zip keyframe sau khi giải nén (tiết kiệm 66 GB) |
+| `--delete-zips` | xoá **từng** zip ngay sau khi giải nén xong (không cần chỗ trống gấp đôi) |
+
+Chọn gì, cần bao nhiêu ổ, tải bằng tay: [mục 3](#3-dữ-liệu-trên-hugging-face-tải-gì-bỏ-gì).
 
 Kết thúc, script in ra kiểm tra, ví dụ:
 ```
@@ -96,15 +99,73 @@ Kiểm tra nhanh: http://localhost:8000/api/status phải trả `"ready": true, 
 
 ## 3. Dữ liệu trên Hugging Face: tải gì, bỏ gì
 
-Toàn bộ dữ liệu ở dataset **[`5clnl/idk`](https://huggingface.co/datasets/5clnl/idk)**. Server **chỉ cần 3 thư mục**:
+Toàn bộ dữ liệu ở dataset **[`5clnl/idk`](https://huggingface.co/datasets/5clnl/idk)**. Server cần **chỉ mục + keyframe + video**;
+video có **hai dạng như nhau — chọn một**:
 
 | Thư mục | Nội dung | Dung lượng | Cần? |
 |---|---|---|---|
 | **`index_all/`** | **embedding PE-Core** của mọi khung (`emb.npy`, 318.809 × 1280 fp16) + bảng tra `frames.npy`, `vid.npy`, `ms.npy`, `videos.json` — xem [Embedding PE-Core ở đâu](#embedding-pe-core-ở-đâu) | 0,8 GB | 🔴 **bắt buộc** — thiếu là không tìm được |
-| **`keyframes_all/`** | 7 zip = **234.083** ảnh keyframe + `manifest.json` | 66 GB (giải nén thêm 66 GB) | 🟠 **rất nên** — ảnh trong lưới kết quả |
-| **`videos/`** | **1.487** video (`.mp4` + `.mov` của N) | 350 GB | 🟠 **nên** — xem / tua video để chọn đúng thời điểm khi nộp |
+| **`keyframes_all/`** | 7 zip = **234.083** ảnh keyframe + `manifest.json` | 66 GB | 🟠 **rất nên** — ảnh trong lưới kết quả |
+| **`videos/`** | **1.487** video, **từng file** (`.mp4`, video N là `.mov`) | 350 GB | 🟠 **nên** — xem / tua video khi chọn thời điểm nộp. **Chọn `videos/` HOẶC `videos_all/`** |
+| **`videos_all/`** | **cùng 1.487 video**, gói thành **9 zip** (không nén, mỗi file ≤ 45 GB) + `manifest.json` | 350 GB | |
 
-Chi tiết `keyframes_all/`:
+**`videos/` hay `videos_all/`?**
+- **`videos/`** (mặc định): tải song song nhiều file, lấy được **một video lẻ**, không phải giải nén, không cần chỗ trống thêm.
+- **`videos_all/`** (`--videos-zip`): chỉ **9 file** — hợp khi công cụ tải / mạng xử lý nhiều file kém. Phải giải nén;
+  với `--delete-zips` script giải nén **từng zip rồi xoá ngay**, nên chỉ cần thêm tối đa ~45 GB tạm.
+
+**Dung lượng ổ cần** (chưa tính ~12 GB mô hình tự tải):
+
+| Cách tải | Ổ cần |
+|---|---|
+| đủ, video dạng `videos/`, `--delete-zips` | **~417 GB** (+ ≤ 21 GB tạm khi giải nén zip keyframe lớn nhất) |
+| đủ, video dạng `videos_all/`, `--delete-zips` | **~417 GB** (+ ≤ 45 GB tạm) |
+| không video (`--no-videos --delete-zips`) | **~67 GB** (+ ≤ 21 GB tạm) — tìm và xem ảnh được, **không** xem / tua video được |
+| không `--delete-zips` | cộng thêm 66 GB (zip keyframe), và 350 GB nếu tải `videos_all/` |
+
+### Cách tải
+
+**Dùng script (khuyên dùng)** — tải + giải nén + kiểm tra, tự nối tiếp khi đứt mạng, chạy lại bao nhiêu lần cũng được
+(zip đã giải nén xong thì không tải lại):
+
+```bash
+# Windows
+python scripts\setup_from_hf.py D:\aic_data --delete-zips                  # video từng file (videos/)
+python scripts\setup_from_hf.py D:\aic_data --videos-zip --delete-zips     # video dạng 9 zip (videos_all/)
+# Linux
+python3 scripts/setup_from_hf.py /data/aic --delete-zips
+python3 scripts/setup_from_hf.py /data/aic --no-videos --delete-zips      # không video
+```
+
+**Tải bằng tay** (lệnh `hf` có trong `pip install -U huggingface_hub`):
+
+```bash
+hf download 5clnl/idk --repo-type dataset --include "index_all/*"      --local-dir <DATA>
+hf download 5clnl/idk --repo-type dataset --include "keyframes_all/*"  --local-dir <DATA>
+hf download 5clnl/idk --repo-type dataset --include "videos/*"         --local-dir <DATA>     # video từng file
+#   hoặc: --include "videos_all/*"                                                          # video dạng 9 zip
+hf download 5clnl/idk --repo-type dataset --include "videos/L26_V156.mp4" --local-dir <DATA>  # một video lẻ
+```
+
+Rồi giải nén:
+
+```bash
+# Linux: keyframe PHẲNG vào <DATA>/keyframes; zip video đã chứa sẵn thư mục videos/ nên giải nén vào <DATA>
+cd <DATA>
+for f in keyframes_all/*.zip; do unzip -q -o -j "$f" -d keyframes; done
+for f in videos_all/*.zip;    do unzip -q -o "$f" -d .; done
+```
+
+```powershell
+# Windows (PowerShell, tar có sẵn từ Windows 10)
+cd <DATA>; mkdir keyframes -Force
+Get-ChildItem keyframes_all\*.zip | ForEach-Object { tar -xf $_.FullName -C keyframes }
+Get-ChildItem videos_all\*.zip    | ForEach-Object { tar -xf $_.FullName -C . }
+```
+
+### Chi tiết từng file zip
+
+`keyframes_all/` — giải nén **tất cả** vào **một** thư mục phẳng:
 
 | File | Ảnh | Dung lượng |
 |---|---|---|
@@ -113,15 +174,24 @@ Chi tiết `keyframes_all/`:
 | `keyframes_old_L21-L30.zip` | 112.205 (video cũ L21–L30) | 20,7 GB |
 | `keyframes_old_extra_1of1.zip` | 1.617 (11 video cũ bổ sung) | 0,3 GB |
 
-**KHÔNG cần tải** (dữ liệu trung gian, đã được gộp vào 3 thư mục trên):
-`keyframes_batch2/`, `keyframes_S01/`, `keyframes_old_missing/`, `embeddings_pecore/`, `embeddings_pecore_N_dense/`, `embeddings_pecore_old_missing/` (embedding gốc, đã gộp vào `index_all/emb.npy` — chỉ cần khi dựng lại chỉ mục).
-Dataset [`Liamislazy/idk`](https://huggingface.co/datasets/Liamislazy/idk) là nguồn gốc của dữ liệu **cũ** (L21–L30) — cũng **không cần**, nội dung đã nằm trong `5clnl/idk` (`keyframes.zip` trùng từng byte với `keyframes_old_L21-L30.zip`).
+`videos_all/` — bên trong mỗi zip video nằm ở `videos/<tên file>`; `manifest.json` cho biết video nào ở zip nào:
+
+| File | Video | Dung lượng |
+|---|---|---|
+| `videos_M_1of3.zip`, `videos_M_2of3.zip`, `videos_M_3of3.zip` | 304 (M) | 110,1 GB |
+| `videos_N_S_1of4.zip` … `videos_N_S_4of4.zip` | 310 (N, S) | 156,7 GB |
+| `videos_L_1of2.zip`, `videos_L_2of2.zip` | 873 (cũ L21–L30) | 82,9 GB |
+
+**Không cần tải:** `embeddings_pecore/`, `embeddings_pecore_N_dense/`, `embeddings_pecore_old_missing/` — embedding gốc từng video,
+đã gộp vào `index_all/emb.npy`; chỉ cần khi dựng lại chỉ mục. Dataset [`Liamislazy/idk`](https://huggingface.co/datasets/Liamislazy/idk)
+là nguồn gốc của dữ liệu **cũ** (L21–L30) — nội dung đã nằm trong `5clnl/idk`.
 
 ### Embedding PE-Core ở đâu
 
 **Embedding PE-Core đã có sẵn trên HF — không cần tự tính lại.** Có 2 dạng:
 
-**a) Bản đã gộp — server dùng bản này:** `index_all/emb.npy` (0,82 GB). Đây **chính là** embedding PE-Core-bigG-14-448 của **cả 318.809 khung / 1.487 video**: float16, 1280 chiều, đã chuẩn hoá L2. Dòng thứ *i* của `emb.npy` ứng với dòng thứ *i* của:
+**a) Bản đã gộp — server dùng bản này:** `index_all/emb.npy` (0,82 GB) = embedding PE-Core-bigG-14-448 của **cả 318.809 khung / 1.487 video**:
+float16, 1280 chiều, đã chuẩn hoá L2. Dòng thứ *i* của `emb.npy` ứng với dòng thứ *i* của:
 
 | File | Cho biết |
 |---|---|
@@ -129,8 +199,6 @@ Dataset [`Liamislazy/idk`](https://huggingface.co/datasets/Liamislazy/idk) là n
 | `frames.npy` | chỉ số frame gốc trong video |
 | `ms.npy` | thời điểm (ms) |
 | `videos.json` | danh sách video: `id`, `fps`, `start`/`end` (khúc dòng của video đó), `source` (`batch2` = mới, `batch1-old` = cũ), `dense` (video N có khung lấy mẫu dày) |
-
-Đọc thử bằng Python:
 
 ```python
 import json, numpy as np
@@ -142,7 +210,7 @@ i = 0
 print(videos[vid[i]]["id"], frames[i], ms[i], emb[i][:5])
 ```
 
-**b) Bản gốc chưa gộp** — chỉ cần khi muốn **dựng lại chỉ mục** (`scripts/build_index.py`, `ingest_dense.py`, `ingest_old_missing.py`):
+**b) Bản gốc chưa gộp** — chỉ cần khi **dựng lại chỉ mục** (`scripts/build_index.py`, `ingest_dense.py`, `ingest_old_missing.py`):
 
 | Nơi | Nội dung | Dung lượng |
 |---|---|---|
@@ -151,20 +219,10 @@ print(videos[vid[i]]["id"], frames[i], ms[i], emb[i][:5])
 | `5clnl/idk/embeddings_pecore_old_missing/` | 11 `.npz` — 11 video cũ từng bị thiếu | 0,01 GB |
 | `Liamislazy/idk/embeddings_pecore.pkl` | video cũ L21–L30 (862 video, 112.205 khung) | 1,28 GB |
 
-`index_all/emb.npy` = (a) gộp từ toàn bộ (b). `embeddings_c2lip.pkl`, `embeddings_finevit.pkl` trên `Liamislazy/idk` là của mô hình khác — server này không dùng.
+**Mô hình** (không nằm trong dataset — server tự tải ở lần chạy đầu): `timm/PE-Core-bigG-14-448` (~9 GB) và `vinai/vinai-translate-vi2en-v2` (~3 GB).
 
-**Mô hình** (không nằm trong dataset — server tự tải ở lần chạy đầu):
-`timm/PE-Core-bigG-14-448` (~9 GB) và `vinai/vinai-translate-vi2en-v2` (~3 GB).
-
-**Ảnh khung dày của video N** (84.726 khung, mỗi 2 giây) **không có ảnh trên HF** — khi cần, server tự cắt ảnh từ video (hơi chậm hơn). Nếu dùng `--no-videos`, các khung này hiện "không có ảnh" nhưng vẫn chọn và nộp được.
-
-Tải bằng tay một phần (không qua script):
-
-```bash
-hf download 5clnl/idk --repo-type dataset --include "index_all/*"      --local-dir <DATA>
-hf download 5clnl/idk --repo-type dataset --include "keyframes_all/*"  --local-dir <DATA>   # rồi giải nén TẤT CẢ zip, PHẲNG, vào <DATA>/keyframes
-hf download 5clnl/idk --repo-type dataset --include "videos/L26_V156.mp4" --local-dir <DATA>   # một video lẻ
-```
+**Ảnh khung dày của video N** (84.726 khung, mỗi 2 giây) **không có trên HF** — khi cần, server tự cắt ảnh từ video (hơi chậm hơn).
+Dùng `--no-videos` thì các khung này hiện "không có ảnh" nhưng vẫn chọn và nộp được.
 
 ---
 
@@ -268,7 +326,8 @@ rồi mở http://localhost:8000 trên máy mình. Ai vào qua đường hầm c
 | [`embedding/translate_fast.py`](embedding/translate_fast.py) | dịch Việt → Anh theo câu, có nhớ đệm |
 | [`frontend/index.html`](frontend/index.html) | toàn bộ giao diện (một file) |
 | [`config/settings.py`](config/settings.py) | cấu hình, đè được bằng biến môi trường |
-| [`scripts/setup_from_hf.py`](scripts/setup_from_hf.py) | tải dữ liệu từ HF |
+| [`scripts/setup_from_hf.py`](scripts/setup_from_hf.py) | tải dữ liệu từ HF (tải + giải nén từng zip + kiểm tra) |
+| [`scripts/zip_videos_to_hf.py`](scripts/zip_videos_to_hf.py) | gói toàn bộ video thành zip và đưa lên HF (`videos_all/`) |
 | `scripts/build_index.py`, `ingest_dense.py`, `ingest_old_missing.py` | dựng lại chỉ mục |
 | `scripts/dense_sample.py`, `make_dense_thumbs.py` | lấy mẫu khung dày (N) |
 | `notebooks/`, `colab_*.ipynb` | Colab: tách keyframe, tính embedding, gom dữ liệu lên HF |

@@ -98,7 +98,8 @@ Màn hình **không bao giờ tự cuộn**; dải keyframe trong cửa sổ vid
 |---|---|---|---|
 | `index_all/` | chỉ mục PE-Core của 1.487 video, 318.809 khung (`emb.npy`, `frames.npy`, `vid.npy`, `ms.npy`, `videos.json`) | ~0,8 GB | **có** — thiếu là không tìm được |
 | `keyframes_all/` | 7 file zip = 234.083 ảnh keyframe (+ `manifest.json`: video nào nằm trong zip nào) | ~67 GB | nên có — để hiện ảnh kết quả |
-| `videos/` | 1.487 video (614 mới + 873 cũ) trong một thư mục | ~350 GB | tùy — để xem/tua video |
+| `videos/` | 1.487 video (614 mới + 873 cũ) trong một thư mục, từng file | ~350 GB | tùy — để xem/tua video |
+| `videos_all/` | **cùng 1.487 video**, gói thành 9 zip ≤ 45 GB (chọn `videos/` HOẶC `videos_all/`) | ~350 GB | tùy |
 
 ### 4.2 Cấu trúc thư mục dữ liệu mà server cần
 
@@ -125,8 +126,8 @@ Server tìm dữ liệu qua **biến môi trường** (script chạy đặt sẵ
 
 ### 4.3 Các bước
 
-Cần: GPU NVIDIA ≥ 8 GB (server dùng ~4 GB), Python 3.10+, ổ trống ~490 GB (bớt ~67 GB với `--delete-zips`;
-`--no-videos`: ~135 GB nhưng không xem được video). Repo GitHub riêng tư thì người tải cần được cấp quyền.
+Cần: GPU NVIDIA ≥ 8 GB (server dùng ~4 GB), Python 3.10+, ổ trống ~417 GB với `--delete-zips` (+ tối đa 45 GB tạm khi giải nén;
+`--no-videos --delete-zips`: ~67 GB nhưng không xem được video). Repo GitHub riêng tư thì người tải cần được cấp quyền.
 
 ```bash
 # 1) code — nhánh final-round-pecore-dres
@@ -140,7 +141,7 @@ pip install -r requirements-server.txt
 # 3) dữ liệu từ Hugging Face -> <DATA> (tải + giải nén + kiểm tra; chạy lại được, tự nối tiếp khi đứt mạng)
 python scripts/setup_from_hf.py /data/aic                  # Linux
 python scripts\setup_from_hf.py D:\aic_data                # Windows
-#   thêm --no-videos  (không tải video)   /   --delete-zips  (xóa zip sau khi giải nén)
+#   thêm --videos-zip (video dạng 9 zip)  /  --no-videos (không tải video)  /  --delete-zips (xóa từng zip sau khi giải nén)
 
 # 4) chạy (lần đầu tự tải mô hình ~12 GB), rồi mở http://localhost:8000
 bash start_server.sh /data/aic                             # Linux
