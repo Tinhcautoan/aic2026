@@ -244,6 +244,10 @@ class Settings(BaseSettings):
     # More folders with videos besides VIDEO_DIR, ';'-separated (e.g. the old-corpus videos extracted on another drive).
     EXTRA_VIDEO_DIRS: str = ""
     THUMB_CACHE_ITEMS: int = 6000
+    # Old-corpus videos missing on this machine can be fetched one at a time from the zip on Hugging Face (HTTP Range).
+    OLD_ZIP_INDEX: Path = PROJECT_ROOT / "config" / "old_videos_zip_index.json"
+    OLD_ZIP_URL: str = "https://huggingface.co/datasets/5clnl/idk/resolve/main/videos.zip"
+    FETCH_VIDEO_DIR: str = ""               # where fetched videos are saved; empty = the first EXTRA_VIDEO_DIRS folder
 
     # Text side. PE-Core is English-only, so Vietnamese is translated first (on GPU).
     TRANSLATE_DEVICE: str = "auto"          # "auto" = GPU when available
@@ -254,6 +258,8 @@ class Settings(BaseSettings):
     # near-identical neighbours of one hit.
     RESULT_TOP_K: int = 60
     RESULT_NMS_SEC: float = 6.0
+    # at most this many frames of one video in the KIS / Q&A list (0 = no limit); the UI can override per request
+    RESULT_MAX_PER_VIDEO: int = 6
     # TRAKE
     TRAKE_SHORTLIST: int = 30               # videos aligned after sub-event ranking
     TRAKE_ALT_FRAMES: int = 8               # per-event alternatives offered for hand-correction

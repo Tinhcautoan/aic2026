@@ -72,6 +72,13 @@ class ThumbService:
                     self._scan_videos()
         return self._videos.get(stem)
 
+    def register_video(self, video_id: str, path: Path) -> None:
+        """Make a video that has just been downloaded visible at once (no wait for the next re-scan)."""
+        with self._vlock:
+            if self._videos is None:
+                self._scan_videos()
+            self._videos[Path(video_id).stem] = Path(path)
+
     # ----------------------------------------------------------------- cache
 
     def _get_cached(self, key):

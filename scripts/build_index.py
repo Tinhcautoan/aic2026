@@ -10,6 +10,8 @@ Writes  INDEX_DIR (default D:\\aic_index): emb.npy fp16, frames/vid/ms .npy, vid
 
 Old-corpus videos that were embedded later on Colab (--extra-npz-dir) carry their own fps in the shard
 (frame_idx int32, pe_core float32 [n,1280], fps float32) and are indexed as source "batch1-old".
+Dense shards (--dense-npz-dir, same layout, named <batch2 video>.npz) add uniformly sampled frames to that video:
+the sparse keyframes and the dense frames are merged by frame index (an index present in both keeps the sparse one).
 """
 import argparse, json, os, re, sys, time
 from concurrent.futures import ThreadPoolExecutor
@@ -23,11 +25,12 @@ from retrieval.frame_index import save_index  # noqa: E402
 ap = argparse.ArgumentParser()
 ap.add_argument("--npz-dir", default=r"D:\aic_pecore_embeddings\embeddings_pecore")
 ap.add_argument("--videos", default=r"E:\AIC2026\aicv5\data\videos")
-ap.add_argument("--keyframes", default=r"D:\aic_batch2_keyframes")
+ap.add_argument("--keyframes", default=r"D:\aic_keyframes_all")
 ap.add_argument("--out", default=os.environ.get("INDEX_DIR", r"D:\aic_index"))
 ap.add_argument("--old-dir", default="", help="folder with metadata/embeddings_OLDCORPUS_SAFE.pkl -> also index the old corpus")
 ap.add_argument("--extra-npz-dir", default="", help="Colab shards for old-corpus videos missing from the old store (fps stored in each .npz)")
 ap.add_argument("--extra-keyframes", default="", help="folder with the extracted keyframe JPEGs of those videos (frame sets are checked when given)")
+ap.add_argument("--dense-npz-dir", default="", help="Colab shards with extra (uniformly sampled) frames for batch2 videos, e.g. the N-series; merged into the video's own frame list")
 a = ap.parse_args()
 
 t0 = time.time()
@@ -94,6 +97,10 @@ def check_shard(fr, e):
 
 embs, frames, vids, mss, meta, problems = [], [], [], [], [], []
 pos = 0
+dense_dir = Path(a.dense_npz_dir) if a.dense_npz_dir else None
+if dense_dir is not None and not dense_dir.is_dir():
+    sys.exit(f"--dense-npz-dir {dense_dir} does not exist")
+n_dense, dense_used = 0, set()
 for vi, p in enumerate(shards):
     v = p.stem
     d = np.load(p)
@@ -103,10 +110,32 @@ for vi, p in enumerate(shards):
     if why:
         problems.append((v, why)); print(f"  !! {v}: {why}")
         continue
+    n_sparse = len(fr)
+    if dense_dir is not None and (dense_dir / p.name).exists():
+        dd = np.load(dense_dir / p.name)
+        dfr, de, dwhy = check_shard(dd["frame_idx"].astype(np.int64), dd["pe_core"])
+        dfps = float(dd["fps"]) if "fps" in dd.files else 0.0
+        if dwhy:
+            problems.append((v, f"dense shard: {dwhy}")); print(f"  !! {v}: dense shard {dwhy} -> only its {n_sparse} sparse keyframes are indexed")
+        else:
+            if dfps > 1 and abs(dfps - fps[v]) > 0.01:
+                print(f"  !! {v}: dense shard fps {dfps:.3f} differs from the video's {fps[v]:.3f}; using the video's")
+            keep = ~np.isin(dfr, fr)
+            fr = np.concatenate([fr, dfr[keep]])
+            e = np.concatenate([e, de[keep]])
+            order = np.argsort(fr, kind="stable")
+            fr, e = fr[order], e[order]
+            n_dense += int(keep.sum()); dense_used.add(v)
     embs.append(e.astype(np.float16)); frames.append(fr.astype(np.int32)); vids.append(np.full(len(fr), len(meta), np.int32))
     mss.append(np.rint(fr * 1000.0 / fps[v]).astype(np.int32))
-    meta.append({"id": v, "fps": fps[v], "start": pos, "end": pos + len(fr), "source": "batch2"})
+    meta.append({"id": v, "fps": fps[v], "start": pos, "end": pos + len(fr), "source": "batch2", **({"dense": True} if v in dense_used else {})})
     pos += len(fr)
+
+if dense_dir is not None:
+    stray = sorted(x.stem for x in dense_dir.glob("*.npz") if not x.name.endswith(".tmp.npz") and x.stem not in {p.stem for p in shards})
+    for v in stray:
+        problems.append((v, "dense shard for a video that has no batch2 shard")); print(f"  !! dense shard {v}: no such batch2 video, ignored")
+    print(f"dense frames added: {n_dense:,} in {len(dense_used)} videos")
 
 if a.old_dir and Path(a.old_dir).is_dir():
     # ---- old corpus (L21..L30): PE-Core 1280-d vectors already in the old persistent store backup

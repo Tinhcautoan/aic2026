@@ -161,12 +161,14 @@ class FrameIndex:
 
     @torch.inference_mode()
     def top_frames(self, q: torch.Tensor, k: int, nms_sec: float = 6.0,
-                   video_ids: Optional[Sequence[str]] = None, pool: Optional[int] = None) -> List[Hit]:
-        """Best `k` frames for one query vector, at most one per `nms_sec` window of a video.
+                   video_ids: Optional[Sequence[str]] = None, pool: Optional[int] = None,
+                   per_video: int = 0) -> List[Hit]:
+        """Best `k` frames for one query vector, at most one per `nms_sec` window of a video and, when
+        `per_video` > 0, at most that many frames per video (densely sampled videos would otherwise fill the list).
 
         The ranking pool comes from an fp16 matrix-vector product over every frame; the
         pool is then re-scored in fp32 so ties that fp16 rounding would create are broken
-        by the true cosine.
+        by the true cosine. If the caps leave the list short, the pool is widened.
         """
         q16 = self._q(q)
         scores = torch.mv(self.emb, q16)
@@ -177,6 +179,14 @@ class FrameIndex:
                     mask[self._by_id[vid_]] = 0
             scores = scores + mask[self.vid_t]
         pool = min(self.n, pool or max(600, 12 * k))
+        while True:
+            kept = self._pick(scores, q16, pool, k, nms_sec, per_video)
+            if len(kept) >= k or pool >= self.n:
+                return kept
+            pool = min(self.n, pool * 4)
+
+    def _pick(self, scores: torch.Tensor, q16: torch.Tensor, pool: int, k: int, nms_sec: float,
+              per_video: int) -> List[Hit]:
         vals, idx = torch.topk(scores, pool)
         rows = self.emb[idx].float()
         exact = torch.mv(rows, q16.float())
@@ -194,6 +204,8 @@ class FrameIndex:
             v = int(self.vid[pos])
             t = int(self.ms[pos])
             ts = taken.setdefault(v, [])
+            if per_video > 0 and len(ts) >= per_video:
+                continue
             if win > 0 and any(abs(t - x) < win for x in ts):
                 continue
             ts.append(t)

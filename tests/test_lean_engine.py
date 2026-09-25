@@ -386,3 +386,35 @@ def test_video_lookup_spans_several_folders_and_notices_files_added_later(tmp_pa
     assert th.video_path("L21_V001").parent == b                  # ... and then it is found without a restart
     assert th.video_path("L21_V001.mp4").name == "L21_V001.mp4"   # also by file name
     th.close()
+
+
+def test_per_video_cap_keeps_the_list_diverse_and_widens_the_pool(tmp_path):
+    rng = np.random.default_rng(7)
+    # a densely sampled video: 200 frames, 2 s apart, all matching the query well
+    dense = [(f, basis(0, .03, rng)) for f in range(0, 200 * 50, 50)]
+    others = {f"O-V{i}": (25.0, [(0, unit(basis(0) * .6 + basis(4 + i % 8) * .4))]) for i in range(12)}
+    idx = build_index(tmp_path, {"DENSE-V1": (25.0, dense), **others})
+    q = torch.from_numpy(basis(0))
+    uncapped = idx.top_frames(q, k=20, nms_sec=6.0, pool=30)
+    assert sum(h.video_id == "DENSE-V1" for h in uncapped) >= 15            # the dense video floods the list
+    capped = idx.top_frames(q, k=20, nms_sec=6.0, pool=30, per_video=5)     # pool 30 is too small: must be widened
+    per = {}
+    for h in capped:
+        per[h.video_id] = per.get(h.video_id, 0) + 1
+    assert per["DENSE-V1"] == 5 and len(capped) == 17 and len(per) == 13
+    assert [h.score for h in capped] == sorted([h.score for h in capped], reverse=True)
+    best_dense = idx.top_frames(q, k=5, nms_sec=6.0, video_ids=["DENSE-V1"])      # the video's own 5 best frames
+    assert sorted(h.pos for h in capped if h.video_id == "DENSE-V1") == sorted(h.pos for h in best_dense)
+
+
+def test_search_endpoint_applies_the_cap_unless_disabled(api):
+    from config import settings
+    j = api.post("/api/search", json={"query": "đứng dậy", "top_k": 20, "per_video": 1}).json()
+    per = {}
+    for r in j["results"]:
+        per[r["video_id"]] = per.get(r["video_id"], 0) + 1
+    assert max(per.values()) == 1
+    j0 = api.post("/api/search", json={"query": "đứng dậy", "top_k": 20, "per_video": 0}).json()
+    assert len(j0["results"]) >= len(j["results"])
+    assert settings.RESULT_MAX_PER_VIDEO == 6
+    assert api.post("/api/search", json={"query": "x", "per_video": -1}).status_code == 422

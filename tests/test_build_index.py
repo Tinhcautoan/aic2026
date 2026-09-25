@@ -146,3 +146,70 @@ def test_ingest_script_indexes_only_validated_videos(tmp_path):
         capture_output=True, text=True, encoding="utf-8", cwd=ROOT)
     assert r2.returncode == 0, r2.stdout + r2.stderr
     assert not list(kf.glob("*.part"))
+
+
+def test_dense_shards_are_merged_into_the_batch2_video(tmp_path):
+    setup(tmp_path)                                                    # batch2 N001-V001: sparse frames 0, 30, 60 at 30 fps
+    (tmp_path / "dense").mkdir()
+    shard(tmp_path / "dense" / "N001-V001.npz", [0, 60, 120, 180], 9, fps=30.0)   # 0 and 60 already exist as sparse keyframes
+    r = run(tmp_path, "--dense-npz-dir", str(tmp_path / "dense"))
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "dense frames added: 2 in 1 videos" in r.stdout
+    idx = FrameIndex.load(tmp_path / "index", device="cpu")
+    v = idx.video_index("N001-V001")
+    s, e = idx.slice_of(v)
+    assert list(idx.frames[s:e]) == [0, 30, 60, 120, 180]
+    assert list(idx.ms[s:e]) == [0, 1000, 2000, 4000, 6000]
+    assert idx.videos[v]["source"] == "batch2" and idx.videos[v]["dense"] is True
+    # the sparse keyframe wins where both have the frame; the dense one supplies the new frames
+    sparse = np.load(tmp_path / "b2" / "N001-V001.npz")["pe_core"]
+    dense = np.load(tmp_path / "dense" / "N001-V001.npz")["pe_core"]
+    got = idx.emb[s:e].float().numpy()
+    assert np.allclose(got[0], sparse[0], atol=2e-3) and np.allclose(got[2], sparse[2], atol=2e-3)
+    assert np.allclose(got[3], dense[2], atol=2e-3) and np.allclose(got[4], dense[3], atol=2e-3)
+
+
+def test_bad_or_stray_dense_shards_are_reported(tmp_path):
+    setup(tmp_path)
+    shard(tmp_path / "b2" / "N002-V001.npz", [0, 30], 5)
+    make_video(tmp_path / "vid" / "N002-V001.avi", 30)
+    (tmp_path / "dense").mkdir()
+    shard(tmp_path / "dense" / "N001-V001.npz", [0, 60, 120], 9, fps=30.0, scale=2.0)   # not unit norm -> sparse only
+    shard(tmp_path / "dense" / "N777-V001.npz", [0, 60], 8, fps=30.0)                   # no such batch2 video
+    r = run(tmp_path, "--dense-npz-dir", str(tmp_path / "dense"))
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "N001-V001: dense shard not unit norm" in r.stdout and "N777-V001: no such batch2 video" in r.stdout
+    idx = FrameIndex.load(tmp_path / "index", device="cpu")
+    s, e = idx.slice_of(idx.video_index("N001-V001"))
+    assert list(idx.frames[s:e]) == [0, 30, 60]                        # untouched
+    assert "dense" not in idx.videos[idx.video_index("N001-V001")]
+    assert idx.video_ids == ["N001-V001", "N002-V001"]
+
+
+def test_ingest_dense_script_reports_thumbnail_mismatch_and_builds_the_merged_index(tmp_path):
+    import json
+    setup(tmp_path)
+    shard(tmp_path / "b2" / "N002-V001.npz", [0, 30], 5)
+    make_video(tmp_path / "vid" / "N002-V001.avi", 30)
+    work = tmp_path / "dwork"
+    (work / "embeddings_pecore_N_dense").mkdir(parents=True)
+    emb = work / "embeddings_pecore_N_dense"
+    shard(emb / "N001-V001.npz", [0, 60, 120, 180], 9, fps=30.0)       # thumbnails match
+    shard(emb / "N002-V001.npz", [0, 60, 120], 6, fps=30.0)            # thumbnails lack frame 120
+    thumbs = tmp_path / "thumbs"
+    (thumbs / "_done").mkdir(parents=True)
+    (thumbs / "_done" / "N001-V001.json").write_text(json.dumps({"idx": [0, 60, 120, 180]}))
+    (thumbs / "_done" / "N002-V001.json").write_text(json.dumps({"idx": [0, 60]}))
+    r = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "ingest_dense.py"), "--skip-download", "--work", str(work), "--thumbs", str(thumbs),
+         "--out", str(tmp_path / "index"), "--old-dir", "", "--npz-dir", str(tmp_path / "b2"), "--videos", str(tmp_path / "vid"),
+         "--batch2-keyframes", str(tmp_path / "none"), "--extra-npz-dir", ""],
+        capture_output=True, text=True, encoding="utf-8", cwd=ROOT)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "thumbnail khớp 1, lệch 1, chưa có 0" in r.stdout
+    assert "N002-V001: thumbnail lệch shard (2 ảnh vs 3 vector; thiếu 1 ảnh, ví dụ [120])" in r.stdout
+    idx = FrameIndex.load(tmp_path / "index", device="cpu")
+    s, e = idx.slice_of(idx.video_index("N001-V001"))
+    assert list(idx.frames[s:e]) == [0, 30, 60, 120, 180]
+    s, e = idx.slice_of(idx.video_index("N002-V001"))
+    assert list(idx.frames[s:e]) == [0, 30, 60, 120]

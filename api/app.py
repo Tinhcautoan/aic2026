@@ -38,6 +38,7 @@ class Engine(SimpleNamespace):
     text = None           # PE-Core text tower (.encode(list[str]) -> [n, D])
     translator = None     # embedding.translate_fast.FastTranslator or None
     thumbs = None         # retrieval.thumbs.ThumbService
+    fetcher = None        # retrieval.video_fetch.VideoFetcher (downloads one old video on request)
     ready = False
     error = None
     load_s = None
@@ -82,6 +83,13 @@ def load_engine(eng: Engine) -> None:
         eng.thumbs = ThumbService(dirs, settings.VIDEO_DIR, settings.THUMB_WIDTH, settings.THUMB_CACHE_ITEMS, index=eng.index,
                                   extra_video_dirs=extra)
 
+        fetch_dir = str(settings.FETCH_VIDEO_DIR).strip() or (extra[0] if extra else "")
+        if fetch_dir:
+            from retrieval.video_fetch import VideoFetcher
+            eng.fetcher = VideoFetcher(settings.OLD_ZIP_INDEX, Path(fetch_dir), settings.OLD_ZIP_URL,
+                                       has_local=lambda v: eng.thumbs.video_path(v) is not None,
+                                       on_done=lambda v, p: eng.thumbs.register_video(v, p))
+
         eng.text.warmup()
         if eng.translator is not None:
             eng.translator.translate_text("một người đàn ông đang đi bộ trên đường")
@@ -101,6 +109,7 @@ class SearchReq(BaseModel):
     top_k: int = Field(default=60, ge=1, le=300)
     en_override: Optional[str] = Field(default=None, max_length=4000)
     video_filter: Optional[List[str]] = None
+    per_video: Optional[int] = Field(default=None, ge=0, le=1000)     # None = RESULT_MAX_PER_VIDEO, 0 = no limit
 
 
 class TrakeReq(BaseModel):
@@ -136,6 +145,7 @@ class DresSubmitReq(BaseModel):
     time_ms: Optional[float] = None
     frames: Optional[List[float]] = None
     force: bool = False
+    evaluation_id: Optional[str] = None          # the page's own evaluation (tab); None = the server's selected one
 
 
 # --------------------------------------------------------------------------- app
@@ -239,7 +249,9 @@ def create_app(engine: Optional[Engine] = None, dres: Optional[DresClient] = Non
         t1 = time.perf_counter()
         q = e.text.encode([en])[0]
         t2 = time.perf_counter()
-        hits = e.index.top_frames(q, req.top_k, nms_sec=settings.RESULT_NMS_SEC, video_ids=req.video_filter)
+        per_video = settings.RESULT_MAX_PER_VIDEO if req.per_video is None else req.per_video
+        hits = e.index.top_frames(q, req.top_k, nms_sec=settings.RESULT_NMS_SEC, video_ids=req.video_filter,
+                                  per_video=0 if req.video_filter else per_video)
         t3 = time.perf_counter()
         results = [{"video_id": h.video_id, "frame_idx": h.frame_idx, "ms": h.ms, "fps": h.fps, "score": round(h.score, 4)}
                    for h in hits]
@@ -306,6 +318,39 @@ def create_app(engine: Optional[Engine] = None, dres: Optional[DresClient] = Non
         v = e.index.video_index(video_id)
         return {"fps": float(e.index.fps[v]), "items": e.index.neighbors(video_id, frame_idx, n)}
 
+    @app.get("/api/videoinfo/{video_id}")
+    def videoinfo(video_id: str):
+        """What the viewer needs to know before it plays a video: is the file here, and if not, can it be fetched."""
+        info = {"video_id": video_id, "in_index": False, "local": False, "fetchable": False}
+        if eng.index is not None and eng.index.has_video(video_id):
+            v = eng.index.video_index(video_id)
+            s, e = eng.index.slice_of(v)
+            info.update(in_index=True, fps=float(eng.index.fps[v]), frames=int(e - s),
+                        first_ms=int(eng.index.ms[s]) if e > s else 0, last_ms=int(eng.index.ms[e - 1]) if e > s else 0)
+        if eng.thumbs is not None:
+            info["local"] = eng.thumbs.video_path(video_id) is not None
+        if eng.fetcher is not None and eng.fetcher.can_fetch(video_id):
+            info["fetchable"] = True
+            info["size_mb"] = round((eng.fetcher.size_bytes(video_id) or 0) / 1e6, 1)
+            info["fetch"] = eng.fetcher.status(video_id)
+        return info
+
+    @app.get("/api/fetch_video/{video_id}")
+    def fetch_status(video_id: str):
+        if eng.fetcher is None:
+            raise HTTPException(404, "Chưa cấu hình thư mục để lưu video tải về (EXTRA_VIDEO_DIRS / FETCH_VIDEO_DIR)")
+        return eng.fetcher.status(video_id)
+
+    @app.post("/api/fetch_video/{video_id}", dependencies=[Depends(dres_guard)])
+    def fetch_start(video_id: str):
+        from retrieval.video_fetch import FetchError
+        if eng.fetcher is None:
+            raise HTTPException(404, "Chưa cấu hình thư mục để lưu video tải về (EXTRA_VIDEO_DIRS / FETCH_VIDEO_DIR)")
+        try:
+            return eng.fetcher.start(video_id)
+        except FetchError as ex:
+            raise HTTPException(404, str(ex))
+
     @app.get("/api/video/{video_id}")
     def video(video_id: str):
         if eng.thumbs is None:
@@ -337,6 +382,16 @@ def create_app(engine: Optional[Engine] = None, dres: Optional[DresClient] = Non
             return await client.use_session(req.session_id)
         except DresError as e:
             return dres_error(e)
+
+    @app.get("/api/dres/task", dependencies=[Depends(dres_guard)])
+    async def dres_task(evaluation_id: Optional[str] = None):
+        """The task DRES is running now (name, type, duration, and which tab it belongs to); {"task": null} when none."""
+        try:
+            return {"task": await client.current_task(evaluation_id or None), "evaluation_id": evaluation_id or client.evaluation_id}
+        except DresError as e:
+            if e.status == 401:
+                return dres_error(e)
+            return {"task": None, "error": str(e)}
 
     @app.post("/api/dres/refresh", dependencies=[Depends(dres_guard)])
     async def dres_refresh():
@@ -383,7 +438,7 @@ def create_app(engine: Optional[Engine] = None, dres: Optional[DresClient] = Non
                 payload = build_trake(req.video_id, req.frames or [])
             else:
                 raise DresError(f"kind không hợp lệ: {req.kind!r}")
-            return await client.submit(payload, force=req.force)
+            return await client.submit(payload, force=req.force, evaluation_id=req.evaluation_id or None)
         except DresError as e:
             return dres_error(e)
 

@@ -30,7 +30,7 @@ import httpx
 
 __all__ = [
     "DresError", "DresClient", "normalize_item",
-    "build_kis", "build_qa", "build_trake", "payload_summary",
+    "build_kis", "build_qa", "build_trake", "payload_summary", "task_kind",
 ]
 
 
@@ -106,6 +106,27 @@ def build_trake(video_id: str, frame_ids: Sequence[Any]) -> Dict[str, Any]:
         raise DresError("Các frame TRAKE phải tăng dần theo thời gian: " + ",".join(map(str, ids)))
     text = f"TR-{normalize_item(video_id)}-{','.join(map(str, ids))}"
     return {"answerSets": [{"answers": [{"text": text}]}]}
+
+
+def task_kind(task: Dict[str, Any]) -> str:
+    """Which tab a DRES task belongs to: "tkis" | "vkis" | "qa" | "trake" | "" (unknown).
+
+    Same idea as the organisers' contestant portal (taskType, else the name: QA / TRAKE|ALIGN / KIS), plus the
+    Textual-vs-Video split that decides the 5-minute or 4-minute clock.
+    """
+    parts = [str(task.get(k) or "") for k in ("task_type", "task_group", "name")]
+    for text in parts:
+        t = text.upper()
+        if not t.strip():
+            continue
+        if "TRAKE" in t or "ALIGN" in t:
+            return "trake"
+        if re.search(r"Q\s*&\s*A|\bQA\b|QUESTION", t):
+            return "qa"
+        if "KIS" in t or "KNOWN ITEM" in t:
+            allp = " ".join(parts).upper()
+            return "vkis" if ("VIDEO" in allp or "VISUAL" in allp) and "TEXT" not in t else "tkis"
+    return ""
 
 
 def payload_summary(payload: Dict[str, Any]) -> str:
@@ -297,6 +318,41 @@ class DresClient:
         self._save()
         return self.evaluations
 
+    async def current_task(self, evaluation_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """The task DRES is running for the selected evaluation, or None between tasks / when unknown.
+
+        Read-only; the same call the organisers' contestant portal polls:
+        GET /api/v2/client/evaluation/currentTask/{evaluationId}?session=
+        """
+        eid = evaluation_id or self.evaluation_id
+        if not (self.session_id and eid):
+            return None
+        try:
+            r = await self._client().get(f"/api/v2/client/evaluation/currentTask/{eid}",
+                                         params={"session": self.session_id})
+        except httpx.HTTPError as e:
+            raise DresError(f"Không kết nối được DRES: {type(e).__name__}")
+        if r.status_code == 401:
+            raise DresError("Session hết hạn hoặc sai — đăng nhập lại", 401)
+        if r.status_code != 200:
+            return None                                   # 400 / 404: no task is running right now
+        try:
+            d = r.json()
+        except Exception:
+            return None
+        if not isinstance(d, dict) or not d.get("name"):
+            return None
+        try:
+            duration = int(float(d.get("duration") or 0))
+        except (TypeError, ValueError):
+            duration = 0
+        if duration > 3600:          # the test evaluations report 300000 for a 5-minute task: that is milliseconds
+            duration //= 1000
+        t = {"name": str(d.get("name")), "task_group": str(d.get("taskGroup") or ""), "task_type": str(d.get("taskType") or ""),
+             "duration": duration, "template_id": str(d.get("templateId") or d.get("id") or "")}
+        t["kind"] = task_kind(t)
+        return t
+
     # ---- staying logged in ------------------------------------------------ #
 
     def _save(self) -> None:
@@ -399,11 +455,19 @@ class DresClient:
 
     # ---- submit ---------------------------------------------------------- #
 
-    async def submit(self, payload: Dict[str, Any], force: bool = False) -> Dict[str, Any]:
-        """Send exactly one answer. Returns a dict the UI can render as-is."""
+    async def submit(self, payload: Dict[str, Any], force: bool = False, evaluation_id: Optional[str] = None) -> Dict[str, Any]:
+        """Send exactly one answer. Returns a dict the UI can render as-is.
+
+        `evaluation_id` lets each open page submit to the evaluation of its own tab without changing the one other
+        pages use; without it the client's selected evaluation is used."""
         if not self.session_id:
             raise DresError("Chưa đăng nhập DRES")
-        if not self.evaluation_id:
+        if evaluation_id:
+            if not any(e["id"] == evaluation_id for e in self.evaluations):
+                await self.refresh_evaluations()
+                if not any(e["id"] == evaluation_id for e in self.evaluations):
+                    raise DresError("Evaluation không có trong danh sách của DRES — bấm chip DRES để làm mới", 404)
+        elif not self.evaluation_id:
             await self.refresh_evaluations()
             if not self.evaluation_id:
                 raise DresError("Chưa có evaluation nào ở trạng thái ACTIVE", 412)
@@ -417,18 +481,20 @@ class DresClient:
                         "summary": summary,
                         "description": f"Đã nộp đáp án này rồi ({prev.verdict}). DRES không cho nộp trùng."}
             t0 = time.perf_counter()
+            eid = evaluation_id or self.evaluation_id
             try:
                 r = await self._client().post(
-                    f"/api/v2/submit/{self.evaluation_id}", params={"session": self.session_id}, json=payload)
+                    f"/api/v2/submit/{eid}", params={"session": self.session_id}, json=payload)
                 if r.status_code == 401 and self._creds and await self._relogin():      # nothing was processed: safe to replay
-                    if not self.evaluation_id:
+                    eid = evaluation_id or self.evaluation_id
+                    if not eid:
                         raise DresError("Đã đăng nhập lại nhưng chưa có evaluation ACTIVE", 412)
                     r = await self._client().post(
-                        f"/api/v2/submit/{self.evaluation_id}", params={"session": self.session_id}, json=payload)
+                        f"/api/v2/submit/{eid}", params={"session": self.session_id}, json=payload)
             except httpx.HTTPError as e:
                 # We cannot know whether DRES received it. Block a blind retry.
                 self._sent[key] = _Sent(summary, "UNKNOWN", time.time())
-                self._audit({"ts": time.time(), "epoch": self.query_epoch, "payload": payload,
+                self._audit({"ts": time.time(), "epoch": self.query_epoch, "evaluation_id": eid, "payload": payload,
                              "http_status": None, "error": type(e).__name__})
                 return {"ok": False, "duplicate": False, "verdict": "UNKNOWN", "payload": payload,
                         "summary": summary, "http_status": None,
@@ -457,7 +523,7 @@ class DresClient:
                     await self.refresh_evaluations()
                 except DresError:
                     pass
-            self._audit({"ts": time.time(), "epoch": self.query_epoch, "payload": payload,
+            self._audit({"ts": time.time(), "epoch": self.query_epoch, "evaluation_id": eid, "payload": payload,
                          "http_status": r.status_code, "verdict": verdict, "description": desc,
                          "latency_ms": latency})
             return {"ok": ok, "duplicate": False, "verdict": verdict, "payload": payload, "summary": summary,
