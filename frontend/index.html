@@ -1,1289 +1,975 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎬 Video Competition</title>
-    <style>
-        :root {
-            --bg: #0f0f14;
-            --panel: #1a1a24;
-            --border: #2a2a3a;
-            --text: #e0e0e8;
-            --text-secondary: #8888a0;
-            --accent: #6c5ce7;
-            --success: #00d68f;
-            --error: #ff5252;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIC 2026 · Tìm &amp; nộp một đáp án</title>
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#0e1116; --panel:#161b22; --panel2:#1c232c; --line:#2a323d; --text:#e7ebf0; --muted:#8994a3;
+  --accent:#4c9aff; --ok:#2ecc71; --bad:#ff5d5d; --warn:#f5b342;
+  --card-min:200px;
+  --r:10px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  display:flex;flex-direction:column;min-height:100vh}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.muted{color:var(--muted)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+[hidden]{display:none!important}
 
-        /* ── Header ─────────────────────────────────────────── */
-        .header {
-            background: var(--panel);
-            border-bottom: 1px solid var(--border);
-            padding: 0 24px;
-            display: flex;
-            align-items: center;
-            height: 52px;
-            flex-shrink: 0;
-            gap: 20px;
-        }
-        .header h1 { font-size: 1.05rem; font-weight: 600; white-space: nowrap; }
-        .header .tabs { display: flex; gap: 4px; margin-left: 16px; }
-        .header .tabs button {
-            background: transparent; border: 1px solid transparent; color: var(--text-secondary);
-            padding: 6px 16px; border-radius: 6px; font-size: 0.82rem; font-weight: 600;
-            cursor: pointer; transition: all 0.15s;
-        }
-        .header .tabs button:hover { color: var(--text); background: rgba(108,92,231,0.1); }
-        .header .tabs button.active {
-            background: var(--accent); color: #fff; border-color: var(--accent);
-        }
-        .header-right {
-            margin-left: auto; display: flex; align-items: center; gap: 16px; font-size: 0.78rem;
-        }
-        .header-right a {
-            color: var(--text-secondary); text-decoration: none; transition: color 0.15s;
-        }
-        .header-right a:hover { color: var(--accent); }
-        .status-dot {
-            width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px;
-            background: var(--success);
-        }
-        .status-dot.offline { background: var(--error); }
+/* ---------- top bar ---------- */
+@media (max-width:1400px){.brand small{display:none}}
+.top{position:sticky;top:0;z-index:20;background:rgba(14,17,22,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 16px}
+.brand{font-weight:700;letter-spacing:.2px}
+.brand small{color:var(--muted);font-weight:400;margin-left:6px}
+.tabs{display:flex;gap:4px;background:var(--panel);padding:3px;border-radius:9px;border:1px solid var(--line)}
+.tab{border:0;background:transparent;padding:6px 10px;border-radius:7px;color:var(--muted);font-weight:600}
+.tab[aria-selected=true]{background:var(--accent);color:#06121f}
+.tab:hover:not([aria-selected=true]){color:var(--text)}
+.spacer{flex:1}
+.timer{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:4px 10px}
+.timer .clock{font-variant-numeric:tabular-nums;font-size:18px;font-weight:700;min-width:5.6em}
+.timer .est{font-size:12px;color:var(--muted);line-height:1.2}
+.timer .est b{color:var(--text);font-size:14px}
+.bar{position:relative;height:4px;width:84px;background:var(--line);border-radius:3px;overflow:hidden}
+.bar>i{position:absolute;inset:0 auto 0 0;width:0;background:var(--ok);transition:width .25s linear,background .25s}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;display:flex;align-items:center;gap:8px}
+.chip{max-width:250px}
+.chip #dresText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip .dot{flex:none;width:9px;height:9px;border-radius:50%;background:#59626f}
+.chip.on .dot{background:var(--ok)} .chip.warn .dot{background:var(--warn)} .chip.off .dot{background:var(--bad)}
+.btn{border:1px solid var(--line);background:var(--panel2);padding:6px 12px;border-radius:8px}
+.btn:hover{border-color:#3a4553}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#06121f;font-weight:700}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{background:transparent;color:var(--bad);border-color:#5a2b2f}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.icon{padding:6px 9px}
 
-        /* ── Main layout ────────────────────────────────────── */
-        .main-container { display: flex; flex: 1; overflow: hidden; }
+/* ---------- query ---------- */
+main{flex:1;width:100%;max-width:1800px;margin:0 auto;padding:12px 16px 200px}
+.query{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:grid;gap:10px}
+.query textarea,.query input[type=text]{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;resize:vertical}
+.query textarea{min-height:64px}
+.query textarea:focus,.query input:focus{border-color:var(--accent);outline:none}
+.qrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.qrow label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
+.en{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.en input{flex:1}
+.hint{font-size:12px;color:var(--muted)}
+.status{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline;margin:12px 2px 8px;color:var(--muted);font-size:13px;min-height:20px}
+.status b{color:var(--text)}
+.err{background:#2a1517;border:1px solid #5a2b2f;color:#ffb3b3;border-radius:8px;padding:8px 12px;margin:10px 0}
 
-        /* ── Left panel ─────────────────────────────────────── */
-        .control-panel {
-            width: 360px; min-width: 360px; background: var(--panel);
-            border-right: 1px solid var(--border);
-            padding: 20px; display: flex; flex-direction: column; gap: 14px;
-            flex-shrink: 0; overflow-y: auto;
-        }
-        .control-panel label {
-            font-size: 0.72rem; font-weight: 600; color: var(--text-secondary);
-            text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;
-        }
-        .control-panel textarea,
-        .control-panel input[type="text"],
-        .control-panel input[type="number"] {
-            width: 100%; padding: 9px 11px; background: var(--bg);
-            border: 1px solid var(--border); border-radius: 7px;
-            color: var(--text); font-size: 0.88rem; outline: none;
-            font-family: inherit; transition: border-color 0.2s;
-        }
-        .control-panel textarea:focus,
-        .control-panel input:focus { border-color: var(--accent); }
-        .control-panel textarea { min-height: 64px; resize: vertical; }
-        .control-panel select {
-            width: 100%; padding: 8px 11px; background: var(--bg);
-            border: 1px solid var(--border); border-radius: 7px;
-            color: var(--text); font-size: 0.88rem; outline: none; cursor: pointer;
-        }
-        .mode-controls { display: none; flex-direction: column; gap: 14px; }
-        .mode-controls.active { display: flex; }
+/* ---------- result grid ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--card-min),1fr));gap:10px}
+.card{position:relative;padding:0;border:2px solid transparent;border-radius:9px;background:var(--panel);overflow:hidden;text-align:left;display:block}
+.card:hover{border-color:#3a4553}
+.card[aria-pressed=true]{border-color:var(--ok);box-shadow:0 0 0 2px rgba(46,204,113,.25)}
+.card img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#0a0d11}
+.card .meta{display:flex;justify-content:space-between;gap:6px;padding:5px 8px;font-size:12px}
+.card .meta b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .rk{position:absolute;left:6px;top:6px;background:rgba(0,0,0,.65);border-radius:5px;padding:1px 6px;font-size:11px}
+.card .play{position:absolute;right:6px;top:6px;background:rgba(0,0,0,.65);border:0;border-radius:5px;padding:1px 7px;font-size:12px}
+.card .play:hover{background:var(--accent);color:#06121f}
+.card.wrong img{filter:grayscale(1) brightness(.45)}
+.card.wrong::after{content:"✗ đã nộp sai";position:absolute;inset:0 0 auto 0;top:38%;text-align:center;color:var(--bad);font-weight:700;pointer-events:none}
+.skeleton{aspect-ratio:16/9;border-radius:9px;background:linear-gradient(100deg,var(--panel) 30%,var(--panel2) 50%,var(--panel) 70%);background-size:300% 100%;animation:sh 1.1s linear infinite}
+@keyframes sh{to{background-position:-100% 0}}
 
-        /* Upload zone */
-        .upload-zone {
-            border: 2px dashed var(--border); border-radius: 8px; padding: 14px;
-            text-align: center; cursor: pointer; font-size: 0.8rem; color: var(--text-secondary);
-        }
-        .upload-zone:hover { border-color: var(--accent); }
-        .upload-zone input { display: none; }
-        #imagePreviewBox img {
-            width: 100%; max-height: 180px; object-fit: cover;
-            border-radius: 8px; border: 1px solid var(--border); margin-top: 8px;
-        }
+/* ---------- TRAKE rows ---------- */
+.trow{background:var(--panel);border:2px solid transparent;border-radius:var(--r);margin-bottom:10px;padding:8px 10px 10px}
+.trow.picked{border-color:var(--ok)}
+.trow.wrong{opacity:.55}
+.trow>header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.trow .rank{background:var(--panel2);border-radius:6px;padding:1px 8px;font-weight:700}
+.chain{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(170px,250px);gap:8px;overflow-x:auto;padding-bottom:4px}
+.tcell{background:var(--panel2);border:2px solid transparent;border-radius:8px;overflow:hidden;font-size:12px}
+.tcell.bad{border-color:var(--bad)}
+.tcell img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#0a0d11}
+.tcell .ev{padding:4px 7px;color:var(--muted);height:2.9em;overflow:hidden}
+.tcell .ev b{color:var(--accent)}
+.tcell .ft{display:flex;justify-content:space-between;align-items:center;padding:0 7px 6px}
+.tcell .swap{border:1px solid var(--line);background:transparent;border-radius:6px;padding:0 7px;font-size:11px;color:var(--muted)}
+.tcell .swap:hover{color:var(--text);border-color:#3a4553}
+.alts{display:grid;grid-auto-flow:column;grid-auto-columns:150px;gap:6px;overflow-x:auto;margin-top:8px;padding:6px;background:var(--bg);border-radius:8px}
+.alts button{padding:0;border:2px solid transparent;border-radius:7px;background:var(--panel2);overflow:hidden;font-size:11px;text-align:center}
+.alts button[aria-pressed=true]{border-color:var(--ok)}
+.alts img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}
 
-        /* ── Buttons ────────────────────────────────────────── */
-        .btn {
-            padding: 9px 18px; border: none; border-radius: 7px; font-size: 0.85rem;
-            font-weight: 600; cursor: pointer; transition: all 0.15s;
-            display: inline-flex; align-items: center; gap: 6px;
-        }
-        .btn-primary { background: var(--accent); color: #fff; flex: 1; }
-        .btn-primary:hover { opacity: 0.9; }
-        .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
-        .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
-        .btn-secondary:hover { border-color: var(--text-secondary); }
-        .btn-sm { padding: 6px 12px; font-size: 0.78rem; }
-        .btn-icon {
-            width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px;
-            background: rgba(108,92,231,0.15); color: var(--accent); font-size: 1.1rem;
-            display: inline-flex; align-items: center; justify-content: center;
-            cursor: pointer; transition: all 0.15s;
-        }
-        .btn-icon:hover { background: var(--accent); color: #fff; }
-        .btn-icon.danger { background: rgba(255,82,82,0.15); color: var(--error); }
-        .btn-icon.danger:hover { background: var(--error); color: #fff; }
-        .btn-row { display: flex; gap: 8px; }
+/* ---------- answer bar ---------- */
+.answer{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(18,23,30,.98);border-top:1px solid var(--line);
+  padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 24px rgba(0,0,0,.35)}
+.answer .inner{max-width:1800px;margin:0 auto;display:grid;gap:8px}
+.sel{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+.selthumbs{display:flex;gap:6px}
+.selthumbs figure{margin:0;position:relative}
+.selthumbs img{display:block;height:58px;aspect-ratio:16/9;object-fit:cover;border-radius:6px;background:#0a0d11}
+.selthumbs figcaption{position:absolute;left:3px;bottom:2px;font-size:10px;background:rgba(0,0,0,.65);border-radius:4px;padding:0 4px}
+.fields{display:grid;gap:5px;min-width:260px;flex:1}
+.fields .row{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.fields input[type=number],.fields input[type=text]{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 8px}
+.fields input[type=number]{width:110px}
+.fields input#ans{flex:1;min-width:240px;font-size:15px}
+.payload{color:var(--muted);font-size:12px;word-break:break-all}
+.payload.bad{color:var(--bad)}
+.acts{display:flex;gap:8px;align-items:center}
+.submit{min-width:170px;padding:12px 20px;font-size:16px}
+.verdict{border-radius:8px;padding:8px 12px;font-weight:600;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.verdict.ok{background:#12301f;color:#7dffa8;border:1px solid #1f6a3c}
+.verdict.no{background:#3a1418;color:#ff9c9c;border:1px solid #7a2a31}
+.verdict.wait{background:#33280f;color:#ffd27a;border:1px solid #6f5417}
+.verdict small{font-weight:400;opacity:.85}
 
-        /* ── Spinner ────────────────────────────────────────── */
-        .spinner {
-            width: 14px; height: 14px; border: 2px solid transparent;
-            border-top-color: currentColor; border-radius: 50%;
-            animation: spin 0.6s linear infinite; display: none;
-        }
-        .loading .spinner { display: inline-block; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* ── Right panel ────────────────────────────────────── */
-        .results-panel {
-            flex: 1; overflow-y: auto; padding: 16px;
-            display: grid; grid-template-columns: repeat(5, 1fr);
-            grid-auto-rows: min-content;
-            gap: 36px 16px; align-content: start; align-items: start;
-        }
-        .result-card {
-            background: var(--panel); border: 1px solid var(--border);
-            border-radius: 10px; overflow: hidden; cursor: pointer;
-            transition: all 0.15s;
-        }
-        .result-card:hover {
-            border-color: var(--accent); transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(108,92,231,0.15);
-        }
-        .result-card .frame-preview {
-            width: 100%; aspect-ratio: 16/9; background: #12121a;
-            display: flex; align-items: center; justify-content: center;
-            color: var(--text-secondary); font-size: 0.8rem; overflow: hidden;
-        }
-        .result-card .frame-preview img { width: 100%; height: 100%; object-fit: cover; }
-        .result-card .card-info { padding: 10px 12px; }
-        .result-card .video-id { font-size: 0.68rem; color: var(--accent); font-weight: 600; margin-bottom: 3px; }
-        .result-card .frame-meta {
-            font-size: 0.7rem; color: var(--text-secondary);
-            display: flex; justify-content: space-between;
-        }
-        .result-card .scores { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
-        .score-badge {
-            background: rgba(108,92,231,0.15); color: var(--accent);
-            padding: 2px 7px; border-radius: 4px; font-size: 0.66rem; font-weight: 500;
-        }
-        .score-badge.best { background: rgba(0,214,143,0.15); color: var(--success); }
-
-        .event-timeline {
-            display: flex; gap: 4px; margin-top: 6px; overflow-x: auto;
-            padding: 4px 0;
-        }
-        .timeline-event {
-            flex-shrink: 0; width: 56px; text-align: center; cursor: pointer;
-            border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
-            transition: border-color 0.15s;
-        }
-        .timeline-event:hover { border-color: var(--accent); }
-        .timeline-event img { width: 56px; height: 32px; object-fit: cover; display: block; }
-        .timeline-label {
-            font-size: 0.55rem; color: var(--text-secondary); display: block;
-            padding: 1px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-        .trake-card .card-info { padding-bottom: 6px; }
-        .answer-text {
-            margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border);
-            font-size: 0.75rem; color: var(--text); line-height: 1.35;
-        }
-        .answer-label { color: var(--text-secondary); font-weight: 600; }
-
-        /* ── Empty state ────────────────────────────────────── */
-        .empty-state {
-            display: flex; flex-direction: column; align-items: center;
-            justify-content: center; padding: 60px 20px;
-            color: var(--text-secondary); text-align: center;
-            grid-column: 1 / -1;
-        }
-        .empty-state .icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.35; }
-
-        /* ── CSV export panel ───────────────────────────────── */
-        .csv-export-panel {
-            background: var(--panel); border-top: 1px solid var(--border);
-            padding: 8px 16px 10px; flex-shrink: 0; display: block;
-        }
-        .csv-export-inner {
-            display: flex; align-items: flex-start; gap: 10px;
-        }
-        .csv-export-panel textarea {
-            flex: 1; min-height: 48px; max-height: 90px; resize: vertical;
-            background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-            color: var(--text); font-size: 0.72rem; font-family: monospace;
-            padding: 8px 10px; line-height: 1.4;
-        }
-        .csv-actions { display: flex; gap: 6px; flex-shrink: 0; padding-top: 2px; }
-
-        /* ── Ranking editor ─────────────────────────────────── */
-        .rank-head {
-            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-        }
-        .rank-head .rank-title {
-            font-size: 0.72rem; font-weight: 700; color: var(--text-secondary);
-            text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer;
-            user-select: none; display: flex; align-items: center; gap: 4px;
-        }
-        .rank-head input[type="text"], .rank-head select {
-            background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-            color: var(--text); font-size: 0.76rem; padding: 5px 8px; outline: none;
-            font-family: inherit;
-        }
-        .rank-head input#rankFilename { width: 190px; }
-        .rank-head select#rankSavedList { max-width: 160px; cursor: pointer; }
-        .rank-head .spacer { flex: 1; }
-        .rank-body { display: flex; gap: 10px; margin-top: 8px; }
-        .csv-export-panel.collapsed .rank-body,
-        .csv-export-panel.collapsed .rank-tools { display: none; }
-        .rank-rows {
-            flex: 1.4; max-height: 210px; overflow-y: auto;
-            border: 1px solid var(--border); border-radius: 6px;
-            background: var(--bg); padding: 4px;
-        }
-        .rank-row {
-            display: grid;
-            grid-template-columns: 30px 52px 1fr 74px auto;
-            gap: 6px; align-items: center; padding: 3px 4px;
-            border-bottom: 1px solid var(--border);
-        }
-        .rank-row:last-child { border-bottom: none; }
-        .rank-row .rk { font-size: 0.72rem; font-weight: 700; color: var(--accent); text-align: center; }
-        .rank-row .thumb {
-            width: 52px; height: 30px; border-radius: 4px; overflow: hidden;
-            background: #12121a; display: flex; align-items: center; justify-content: center;
-        }
-        .rank-row .thumb img { width: 100%; height: 100%; object-fit: cover; }
-        .rank-row input {
-            background: var(--panel); border: 1px solid var(--border); border-radius: 4px;
-            color: var(--text); font-size: 0.74rem; padding: 4px 6px; outline: none;
-            font-family: inherit; width: 100%;
-        }
-        .rank-row input:focus { border-color: var(--accent); }
-        .rank-row .row-actions { display: flex; gap: 2px; }
-        .rank-row .row-actions button {
-            width: 22px; height: 22px; padding: 0; border: none; border-radius: 4px;
-            background: rgba(108,92,231,0.15); color: var(--accent); font-size: 0.8rem;
-            cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
-        }
-        .rank-row .row-actions button:hover { background: var(--accent); color: #fff; }
-        .rank-row .row-actions button.del { background: rgba(255,82,82,0.15); color: var(--error); }
-        .rank-row .row-actions button.del:hover { background: var(--error); color: #fff; }
-        .rank-empty { padding: 14px; text-align: center; color: var(--text-secondary); font-size: 0.75rem; }
-        .csv-export-panel textarea#csvExportText { flex: 1; max-height: 210px; min-height: 120px; }
-        .rank-tools { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }
-        .rank-tool {
-            display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-            background: var(--bg); border: 1px solid var(--border);
-            border-radius: 6px; padding: 6px 10px;
-        }
-        .rank-tool > span {
-            font-size: 0.68rem; font-weight: 700; color: var(--text-secondary);
-            text-transform: uppercase; letter-spacing: 0.5px;
-        }
-        .rank-tool input {
-            background: var(--panel); border: 1px solid var(--border); border-radius: 4px;
-            color: var(--text); font-size: 0.76rem; padding: 5px 7px; outline: none;
-            font-family: inherit;
-        }
-        .rank-tool input:focus { border-color: var(--accent); }
-        .rank-tool input.w-vid { width: 110px; }
-        .rank-tool input.w-num { width: 74px; }
-
-        /* ── Video modal ────────────────────────────────────── */
-        .video-modal {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.82);
-            display: none; align-items: center; justify-content: center;
-            z-index: 3000; padding: 24px;
-        }
-        .video-modal.open { display: flex; }
-        .video-modal-content {
-            width: min(960px, 100%); background: var(--panel);
-            border: 1px solid var(--border); border-radius: 12px;
-            overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.45);
-            position: relative;
-        }
-        .video-modal-header {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 0.85rem;
-        }
-        .video-modal-header .meta { color: var(--text-secondary); font-size: 0.78rem; }
-        .video-modal video { width: 100%; max-height: 70vh; background: #000; display: block; }
-        .frame-overlay {
-            position: absolute; bottom: 12px; left: 12px;
-            background: rgba(0,0,0,0.72); color: #fff;
-            padding: 4px 10px; border-radius: 6px;
-            font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
-            pointer-events: none; z-index: 10;
-        }
-        .video-modal-actions {
-            display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border);
-        }
-        .btn-close {
-            background: transparent; border: none; color: var(--text-secondary);
-            font-size: 1.2rem; cursor: pointer; padding: 4px 8px;
-        }
-        .btn-close:hover { color: var(--text); }
-
-        /* ── Toast ──────────────────────────────────────────── */
-        .toast {
-            position: fixed; bottom: 20px; right: 20px; padding: 12px 20px;
-            border-radius: 8px; font-size: 0.85rem; z-index: 4000;
-            animation: slideIn 0.3s;
-        }
-        .toast.error { background: var(--error); color: #fff; }
-        .toast.ok { background: var(--success); color: var(--bg); }
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-        /* ── TRAKE event list ───────────────────────────────── */
-        .event-row { display: flex; gap: 6px; align-items: center; }
-        .event-row input { flex: 1; }
-    </style>
+/* ---------- dialogs ---------- */
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:0;max-width:96vw}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+.dlg{padding:16px 18px;display:grid;gap:12px;min-width:min(520px,92vw)}
+.dlg h2{margin:0;font-size:16px}
+.dlg label{display:grid;gap:4px;color:var(--muted);font-size:12px}
+.dlg input,.dlg select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--text)}
+.dlg .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.seg{display:flex;gap:4px;background:var(--bg);padding:3px;border-radius:9px;border:1px solid var(--line)}
+.seg button{flex:1;border:0;background:transparent;padding:6px;border-radius:7px;color:var(--muted)}
+.seg button[aria-selected=true]{background:var(--panel2);color:var(--text)}
+#viewer .dlg{min-width:min(1100px,94vw)}
+#viewer video{width:100%;max-height:62vh;background:#000;border-radius:8px}
+.vmsg{color:var(--warn);font-size:13px}
+.vframe{display:block;width:100%;max-height:62vh;object-fit:contain;background:#000;border-radius:8px}
+.strip{display:grid;grid-auto-flow:column;grid-auto-columns:128px;gap:6px;overflow-x:auto;padding-bottom:4px}
+.strip button{padding:0;border:2px solid transparent;background:var(--panel2);border-radius:7px;overflow:hidden;font-size:11px}
+.strip button[aria-pressed=true]{border-color:var(--accent)}
+.strip img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}
+.drawer{position:fixed;right:12px;bottom:calc(var(--barh,120px) + 14px);z-index:31;width:min(460px,92vw);max-height:46vh;overflow:auto;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.drawer h3{margin:0 0 6px;font-size:13px}
+.drawer ol{margin:0;padding-left:18px;display:grid;gap:5px;font-size:12px}
+.tag{border-radius:5px;padding:0 6px;font-size:11px;font-weight:700}
+.tag.CORRECT{background:#12301f;color:#7dffa8}.tag.WRONG{background:#3a1418;color:#ff9c9c}
+.tag.other{background:#33280f;color:#ffd27a}
+.empty{padding:36px 8px;text-align:center;color:var(--muted)}
+.empty kbd,.hint kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 6px;font:12px ui-monospace,Consolas,monospace;color:var(--text)}
+</style>
 </head>
 <body>
 
-<!-- ════════════════════════════════════════════════════════════ HEADER -->
-<div class="header">
-    <h1>🎬 Video Competition</h1>
-    <div class="tabs" id="tabBar">
-        <button class="active" data-mode="tkis">TKIS</button>
-        <button data-mode="qa">Q&A</button>
-        <button data-mode="trake">TRAKE</button>
+<header class="top">
+  <div class="brand">AIC 2026<small>nộp 1 đáp án</small></div>
+  <div class="tabs" role="tablist" id="tabs" aria-label="Loại truy vấn">
+    <button class="tab" role="tab" data-task="tkis">Textual KIS</button>
+    <button class="tab" role="tab" data-task="vkis">Video KIS</button>
+    <button class="tab" role="tab" data-task="qa">Q&amp;A</button>
+    <button class="tab" role="tab" data-task="trake">TRAKE</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="timer" title="Ước tính theo đồng hồ của máy này; đồng hồ chính thức là của DRES">
+    <span class="clock" id="clock">0:00 / 5:00</span>
+    <div><div class="bar"><i id="clockBar"></i></div><div class="est" id="est">Bấm “Câu mới” khi câu bắt đầu</div></div>
+    <button class="btn" id="btnNew" title="Bắt đầu câu mới: xóa đáp án đã chọn, đặt lại đồng hồ và danh sách đã nộp">⟲ Câu mới</button>
+  </div>
+  <button class="chip off" id="dresChip" title="Đăng nhập / chọn evaluation của DRES"><span class="dot"></span><span id="dresText">DRES: chưa đăng nhập</span></button>
+  <button class="btn icon" id="btnLog" title="Nhật ký nộp của câu này">🧾 <span id="logN">0</span></button>
+  <button class="btn icon" id="btnCfg" title="Cài đặt">⚙</button>
+</header>
+
+<main>
+  <section class="query" id="query"></section>
+  <div class="status" id="status" aria-live="polite"></div>
+  <div id="error" hidden></div>
+  <section id="results"></section>
+</main>
+
+<footer class="answer" id="answer">
+  <div class="inner">
+    <div class="verdict" id="verdict" hidden role="status" aria-live="assertive"></div>
+    <div class="empty" id="barEmpty" style="padding:10px 0">Chưa chọn đáp án — bấm vào một khung hình để chọn. Chỉ <b>một</b> đáp án được nộp mỗi lần.</div>
+    <div class="sel" id="barSel" hidden>
+      <div class="selthumbs" id="barThumbs"></div>
+      <div class="fields">
+        <div class="row">
+          <b id="barVideo"></b>
+          <span id="barTimeWrap">tại <input type="number" id="selMs" min="0" step="100" aria-label="Thời điểm (ms)"> ms <span class="muted" id="barTimeHuman"></span></span>
+        </div>
+        <div class="row" id="barAnsWrap" hidden>
+          <input type="text" id="ans" placeholder="Câu trả lời Q&A (Enter để nộp)" autocomplete="off" aria-label="Câu trả lời">
+        </div>
+        <code class="payload mono" id="barPayload"></code>
+      </div>
+      <div class="acts">
+        <button class="btn" id="btnView" title="Xem video ở thời điểm này">▶ Xem</button>
+        <button class="btn" id="btnClear" title="Bỏ chọn (Esc)">✕</button>
+        <button class="btn primary submit" id="btnSubmit" title="Nộp lên DRES (Ctrl+Shift+Enter)">NỘP ĐÁP ÁN</button>
+      </div>
     </div>
-    <div class="header-right">
-        <a href="/process">Process</a>
-        <a href="/batch_answer.html">Batch</a>
-        <span><span class="status-dot" id="statusDot"></span><span id="statusText">Checking...</span></span>
+  </div>
+</footer>
+
+<aside class="drawer" id="drawer" hidden>
+  <h3>Đã nộp trong câu này</h3>
+  <ol id="logList"></ol>
+</aside>
+
+<!-- DRES login -->
+<dialog id="dresDlg">
+  <form class="dlg" method="dialog" id="dresForm" onsubmit="return false">
+    <h2>Kết nối DRES</h2>
+    <label>Địa chỉ server
+      <input type="text" id="dBase" placeholder="https://eventretrieval.one" autocomplete="off">
+    </label>
+    <div class="seg" id="dMode" role="tablist">
+      <button type="button" role="tab" data-m="login" aria-selected="true">Username / mật khẩu</button>
+      <button type="button" role="tab" data-m="session" aria-selected="false">Dán sessionId</button>
     </div>
-</div>
-
-<!-- ════════════════════════════════════════════════════════════ MAIN -->
-<div class="main-container">
-
-    <!-- ── LEFT PANEL ─────────────────────────────────────── -->
-    <div class="control-panel">
-
-        <!-- TKIS Controls -->
-        <div class="mode-controls active" id="tkisControls">
-            <div>
-                <label>Search Mode</label>
-                <select id="tkisSearchMode">
-                    <option value="text" selected>Text query</option>
-                    <option value="image">Image query</option>
-                </select>
-            </div>
-            <div id="tkisTextBox">
-                <label>Description</label>
-                <textarea id="tkisQuery" placeholder="Describe the scene...&#10;e.g. 'a person presenting slides'"></textarea>
-            </div>
-            <div id="tkisImageBox" style="display:none">
-                <label>Upload image</label>
-                <div class="upload-zone" id="tkisUploadZone">
-                    <input id="tkisImageInput" type="file" accept="image/*">
-                    <span>Click to upload image</span>
-                </div>
-                <div id="tkisImagePreview" style="display:none">
-                    <img id="tkisImageThumb" src="" alt="preview">
-                </div>
-            </div>
-            <div>
-                <label>Top-K</label>
-                <select id="tkisTopK">
-                    <option value="5">5</option><option value="10">10</option>
-                    <option value="20">20</option><option value="50">50</option>
-                    <option value="100" selected>100</option>
-                </select>
-            </div>
-            <div class="btn-row">
-                <button class="btn btn-primary" id="tkisSearchBtn" onclick="doTkisSearch()">
-                    <span class="spinner"></span>Search
-                </button>
-                <button class="btn btn-secondary" onclick="clearResults()">Clear</button>
-            </div>
-            <div style="border-top:1px solid var(--border);padding-top:12px">
-                <label>CSV Helper</label>
-                <div class="btn-row" style="margin-bottom:8px">
-                    <button class="btn btn-primary btn-sm" onclick="buildTkisCsv()">Build Row</button>
-                    <button class="btn btn-secondary btn-sm" onclick="copyCsv()">Copy</button>
-                    <button class="btn btn-secondary btn-sm" onclick="downloadCsv()">Download</button>
-                </div>
-                <textarea id="tkisCsvPreview" readonly placeholder="video_id, frame_idx" style="width:100%;min-height:80px;max-height:140px;resize:vertical;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.72rem;font-family:monospace;padding:8px;line-height:1.4"></textarea>
-            </div>
-        </div>
-
-        <!-- Q&A Controls -->
-        <div class="mode-controls" id="qaControls">
-            <div>
-                <label>Description</label>
-                <textarea id="qaDescription" placeholder="Describe the video content..."></textarea>
-            </div>
-            <div>
-                <label>Question</label>
-                <input type="text" id="qaQuestion" placeholder="What are you asking?">
-            </div>
-            <div>
-                <label>Top-K</label>
-                <select id="qaTopK">
-                    <option value="5">5</option><option value="10">10</option>
-                    <option value="20">20</option><option value="50">50</option>
-                    <option value="100" selected>100</option>
-                </select>
-            </div>
-            <div class="btn-row">
-                <button class="btn btn-primary" id="qaSearchBtn" onclick="doQaSearch()">
-                    <span class="spinner"></span>Search
-                </button>
-                <button class="btn btn-secondary" onclick="clearResults()">Clear</button>
-                <label style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;font-size:0.78rem;color:var(--text-secondary);cursor:pointer">
-                    <input type="checkbox" id="qaIncludeVague" onchange="reRenderQa()"> Include vague answers
-                </label>
-            </div>
-        </div>
-
-        <!-- TRAKE Controls -->
-        <div class="mode-controls" id="trakeControls">
-            <div>
-                <label>Main Description</label>
-                <textarea id="trakeDescription" placeholder="Overall video description..."></textarea>
-            </div>
-            <div>
-                <label>Events (in order)</label>
-                <div id="trakeEventList"></div>
-                <button class="btn btn-secondary btn-sm" onclick="addTrakeEvent()" style="margin-top:6px;width:100%">+ Add Event</button>
-            </div>
-            <div>
-                <label>Top-K (default 50)</label>
-                <input type="number" id="trakeTopK" value="50" min="1" max="500">
-            </div>
-            <div class="btn-row">
-                <button class="btn btn-primary" id="trakeAlignBtn" onclick="doTrakeAlign()">
-                    <span class="spinner"></span>Align Events
-                </button>
-                <button class="btn btn-secondary" onclick="clearResults()">Clear</button>
-            </div>
-        </div>
-
+    <div id="dLogin" style="display:grid;gap:10px">
+      <label>Username <input type="text" id="dUser" autocomplete="username"></label>
+      <label>Mật khẩu <input type="password" id="dPass" autocomplete="current-password"></label>
     </div>
-
-    <!-- ── RIGHT PANEL (results grid) ─────────────────────── -->
-    <div class="results-panel" id="resultsPanel">
-        <div class="empty-state">
-            <div class="icon">🔍</div>
-            <p>Select a mode and search to begin</p>
-        </div>
+    <div id="dSess" style="display:none">
+      <label>sessionId (lấy ở trang User của DRES) <input type="text" id="dSid" autocomplete="off"></label>
     </div>
-
-</div>
-
-<!-- ════════════════════════════════════════════════════════════ RANKING EDITOR / EXPORT -->
-<div class="csv-export-panel" id="csvExportPanel">
-    <div class="rank-head">
-        <span class="rank-title" id="rankToggle" onclick="toggleRankPanel()">▾ Submission ranking</span>
-        <input type="text" id="rankFilename" placeholder="filename.txt" title="Download / save-to-file name">
-        <button class="btn btn-secondary btn-sm" onclick="loadRankFromResults()" title="Copy current search results into the editor">↧ From results</button>
-        <select id="rankSavedList" onchange="loadSavedRanking()" title="Load a saved submission file"><option value="">Load saved…</option></select>
-        <span class="spacer"></span>
-        <button class="btn btn-secondary btn-sm" onclick="copyCsv()">Copy</button>
-        <button class="btn btn-secondary btn-sm" onclick="downloadCsv()">Download</button>
-        <button class="btn btn-primary btn-sm" onclick="saveRankingToFile()">💾 Save to file</button>
+    <label id="dEvWrap" hidden>Evaluation
+      <select id="dEval"></select>
+    </label>
+    <label>Tên collection (chỉ điền khi DRES báo “collection name is required”; nếu không, để trống)
+      <input type="text" id="dColl" placeholder="vd. tên collection BTC cung cấp" autocomplete="off">
+    </label>
+    <div id="dMsg" class="hint"></div>
+    <div class="row">
+      <button type="button" class="btn danger" id="dOut" hidden>Đăng xuất</button>
+      <button type="button" class="btn" id="dRefresh" hidden>↻ Làm mới danh sách</button>
+      <button type="button" class="btn" id="dClose">Đóng</button>
+      <button type="submit" class="btn primary" id="dGo">Kết nối</button>
     </div>
+    <div class="hint">Mật khẩu chỉ được gửi tới DRES qua server này và không được lưu vào ổ đĩa.</div>
+  </form>
+</dialog>
 
-    <div class="rank-tools">
-        <div class="rank-tool">
-            <span>Set rank</span>
-            <input class="w-vid" type="text" id="ovVideoId" placeholder="video_id">
-            <input class="w-num" type="number" id="ovFrameIdx" placeholder="frame_id" min="0">
-            <input class="w-num" type="number" id="ovRank" placeholder="→ Top #" min="1">
-            <button class="btn btn-secondary btn-sm" onclick="applyOverrideRow()">Apply</button>
-        </div>
-        <div class="rank-tool">
-            <span>Batch step</span>
-            <input class="w-vid" type="text" id="batchVideoId" placeholder="video_id">
-            <input class="w-num" type="number" id="batchFrameIdx" placeholder="frame_id" min="0">
-            <input class="w-num" type="number" id="batchStep" placeholder="step N" value="1">
-            <input class="w-num" type="number" id="batchCount" placeholder="count" value="10" min="1" max="100">
-            <button class="btn btn-secondary btn-sm" onclick="applyBatchAssign()">Generate</button>
-        </div>
+<!-- Settings -->
+<dialog id="cfgDlg">
+  <form class="dlg" method="dialog">
+    <h2>Cài đặt</h2>
+    <label>Kích thước ảnh nhỏ <input type="range" id="cThumb" min="130" max="360" step="10"></label>
+    <label>Số kết quả hiển thị (KIS / Q&amp;A) <select id="cTop"><option>30</option><option>60</option><option>100</option><option>150</option></select></label>
+    <label>Khoảng nộp ± giây quanh thời điểm chọn (KIS). 0 = nộp đúng một thời điểm
+      <input type="number" id="cPm" min="0" max="30" step="1"></label>
+    <label>TRAKE: FRAME_ID nộp lên là
+      <select id="cId"><option value="ms">mili-giây (ms) — mặc định</option><option value="frame">chỉ số frame gốc của video</option></select></label>
+    <label style="display:flex;align-items:center;gap:8px;grid-template-columns:none"><input type="checkbox" id="cLive"> Tự tìm khi ngừng gõ (≈0,7 giây)</label>
+    <label style="display:flex;align-items:center;gap:8px;grid-template-columns:none"><input type="checkbox" id="cConfirm"> Hỏi xác nhận (bấm NỘP hai lần)</label>
+    <div class="row"><button class="btn primary" value="close">Xong</button></div>
+  </form>
+</dialog>
+
+<!-- Video / frame viewer -->
+<dialog id="viewer">
+  <div class="dlg">
+    <div style="display:flex;align-items:center;gap:12px">
+      <h2 id="vTitle" style="flex:1">Video</h2>
+      <button class="btn" id="vClose">Đóng (Esc)</button>
     </div>
-
-    <div class="rank-body">
-        <div class="rank-rows" id="rankRowsList">
-            <div class="rank-empty">No rows yet — run a search, click “From results”, or use the tools above.</div>
-        </div>
-        <textarea id="csvExportText" readonly placeholder="ranking preview (row 1 = Top 1)…"></textarea>
+    <video id="vVideo" controls preload="metadata" playsinline></video>
+    <img id="vFrame" class="vframe" alt="keyframe" hidden>
+    <div class="vmsg" id="vMsg" hidden></div>
+    <div class="row" style="justify-content:flex-start;align-items:center" id="vActs">
+      <button class="btn" id="vBack">−1 giây</button>
+      <button class="btn" id="vFwd">+1 giây</button>
+      <button class="btn primary" id="vPick">Chọn thời điểm này</button>
+      <span class="muted" id="vNow"></span>
     </div>
-</div>
+    <div class="strip" id="vStrip" aria-label="Các khung hình lân cận"></div>
+  </div>
+</dialog>
 
-<!-- ════════════════════════════════════════════════════════════ VIDEO MODAL -->
-<div class="video-modal" id="videoModal" onclick="if(event.target===this)closeVideoModal()">
-    <div class="video-modal-content">
-        <div class="video-modal-header">
-            <div>
-                <div id="videoModalTitle">Video preview</div>
-                <div class="meta" id="videoModalMeta"></div>
-            </div>
-            <button class="btn-close" type="button" onclick="closeVideoModal()">&times;</button>
-        </div>
-        <video id="videoPlayer" controls preload="auto"></video>
-        <div class="frame-overlay" id="frameOverlay">Frame 0</div>
-        <div class="video-modal-actions">
-            <button class="btn btn-secondary" type="button" onclick="seekVideoRelative(-5)">-5s</button>
-            <button class="btn btn-secondary" type="button" onclick="seekVideoRelative(5)">+5s</button>
-            <button class="btn btn-primary" type="button" id="replayBtn" onclick="replayAtFrame()">Play frame</button>
-        </div>
-    </div>
-</div>
-
-<!-- ════════════════════════════════════════════════════════════ SCRIPT -->
 <script>
-(function () {
-    'use strict';
+'use strict';
+/* =====================================================================
+   API used by this page (implemented by api/app.py):
+     GET  /api/status
+     POST /api/search        {query, top_k, en_override?}
+     POST /api/trake         {events[], top_k}
+     GET  /api/neighbors/{video}/{frame}?n=
+     GET  /api/thumb/{video}/{frame}      (JPEG)
+     GET  /api/video/{video}              (Range-capable mp4)
+     GET  /api/dres/state        POST /api/dres/{login|session|refresh|select|logout|new_query|submit}
+   ===================================================================== */
 
-    const API = window.location.origin;
-    let currentMode = 'tkis';
-    let currentResults = [];
-    let lastQaData = null;
-    let searchTimer = null;
-    let csvRows = [];
-    let rankRows = [];  // editable submission ranking: [{video_id, frame_idx, answer?, frames?}]
-    let videoModalState = { videoId: '', frameIdx: 0, timestamp: 0, fps: 25 };
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+function el(tag, props, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') n.className = v;
+    else if (k === 'dataset') Object.assign(n.dataset, v);
+    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else if (k in n && k !== 'list') { try { n[k] = v; } catch { n.setAttribute(k, v); } }
+    else n.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) n.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return n;
+}
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('aic.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('aic.' + k, JSON.stringify(v)); } catch { /* private mode */ } },
+};
+const fmtTime = ms => {
+  const s = Math.max(0, Math.round(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(ss).padStart(2, '0');
+};
+const PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 90"><rect width="160" height="90" fill="#10151b"/>' +
+  '<text x="80" y="49" fill="#59626f" font-family="sans-serif" font-size="9" text-anchor="middle">không có ảnh</text></svg>');
+const thumbURL = (v, f) => `${S.legacy ? '/api/frame' : '/api/thumb'}/${encodeURIComponent(v)}/${f}`;
+function img(v, f, alt = '') {
+  const i = el('img', { src: thumbURL(v, f), alt, loading: 'eager', decoding: 'async', draggable: false });
+  i.addEventListener('error', () => { if (i.src !== PLACEHOLDER) i.src = PLACEHOLDER; }, { once: true });
+  return i;
+}
 
-    const DEFAULT_RANK_NAME = { tkis: 'competition_tkis.txt', qa: 'competition_qa.txt', trake: 'competition_trake.txt' };
+/* ------------------------------------------------------------------ state */
+const TASKS = {
+  tkis:  { label: 'Textual KIS', T: 300, kind: 'kis' },
+  vkis:  { label: 'Video KIS',   T: 240, kind: 'kis' },
+  qa:    { label: 'Q&A',         T: 300, kind: 'qa' },
+  trake: { label: 'TRAKE',       T: 300, kind: 'trake' },
+};
+const S = {
+  task: TASKS[store.get('task', 'tkis')] ? store.get('task', 'tkis') : 'tkis',
+  cfg: {
+    top: store.get('top', 60), thumb: store.get('thumb', 200), pm: store.get('pm', 0),
+    idMode: store.get('idMode', 'ms'), live: store.get('live', true), confirm: store.get('confirm', false),
+  },
+  data: { tkis: null, vkis: null, qa: null, trake: null },   // last response per task
+  text: { tkis: '', vkis: '', qa: '', trake: '', qaQuestion: '' },
+  sel: null,                 // current single answer (see selectKis / selectTrake)
+  answer: '',
+  seq: 0, ctrl: null,        // stale-response guard for searches
+  timer: { t0: null, t1: null },
+  log: [],                   // submissions of this query: {summary, verdict, description}
+  wrong: new Set(),          // keys of answers already judged wrong in this query
+  dres: { logged_in: false, evaluations: [], evaluation_id: '' },
+  status: null,
+  legacy: false,
+  confirmArmed: false,
+};
+const kind = () => TASKS[S.task].kind;
+const idMode = () => (S.cfg.idMode === 'frame' ? 'frame' : 'ms');   // unit of the TRAKE FRAME_ID we submit
 
-    /* ── Utilities ──────────────────────────────────────────── */
-
-    function $(id) { return document.getElementById(id); }
-
-    function toast(msg, type) {
-        const el = document.createElement('div');
-        el.className = 'toast ' + (type || 'ok');
-        el.textContent = msg;
-        document.body.appendChild(el);
-        setTimeout(() => el.remove(), 3000);
-    }
-
-    function escapeHtml(s) {
-        return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;')
-            .replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    }
-
-    function escapeJs(s) {
-        return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    }
-
-    function setLoading(btnId, on) {
-        const btn = $(btnId);
-        if (!btn) return;
-        btn.disabled = on;
-        btn.classList.toggle('loading', on);
-    }
-
-    /* ── Status ─────────────────────────────────────────────── */
-
-    async function checkStatus() {
-        try {
-            const r = await fetch(API + '/api/status');
-            const d = await r.json();
-            $('statusDot').className = 'status-dot';
-            const n = d.milvus?.num_entities || 0;
-            $('statusText').textContent = n > 0 ? `Ready \u00b7 ${n} frames` : 'Ready \u00b7 no videos';
-        } catch (e) {
-            $('statusDot').className = 'status-dot offline';
-            $('statusText').textContent = 'Offline';
-        }
-    }
-
-    /* ── Tab switching ──────────────────────────────────────── */
-
-    document.querySelectorAll('#tabBar button').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#tabBar button').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            currentMode = btn.dataset.mode;
-            document.querySelectorAll('.mode-controls').forEach(el => el.classList.remove('active'));
-            $(currentMode + 'Controls').classList.add('active');
-            clearResults();
-            syncDefaultRankName();
-        });
+/* -------------------------------------------------------------------- api */
+function errText(j) {                     // FastAPI: detail is a string, or a list of {msg} for 422
+  const d = j && (j.detail ?? j.description);
+  if (d == null) return '';
+  if (typeof d === 'string') return d;
+  if (Array.isArray(d)) return d.map(x => (x && (x.msg || x.message)) || JSON.stringify(x)).join('; ');
+  return JSON.stringify(d);
+}
+async function api(path, opts = {}, timeout = 20000) {
+  const ctrl = opts.signal ? null : new AbortController();
+  const timer = ctrl && setTimeout(() => ctrl.abort(), timeout);
+  try {
+    const r = await fetch(path, {
+      ...opts, signal: opts.signal || ctrl.signal,
+      headers: opts.body ? { 'Content-Type': 'application/json', ...(opts.headers || {}) } : opts.headers,
     });
+    let j = null;
+    try { j = await r.json(); } catch { /* not JSON */ }
+    if (!r.ok) throw Object.assign(new Error(errText(j) || `HTTP ${r.status}`), { status: r.status, body: j });
+    return j;
+  } catch (e) {
+    if (e.name === 'AbortError') throw e;
+    if (e instanceof TypeError) throw new Error('Không kết nối được server tìm kiếm (đang chạy chưa?)');
+    throw e;
+  } finally { if (timer) clearTimeout(timer); }
+}
+const post = (path, body, timeout) => api(path, { method: 'POST', body: JSON.stringify(body || {}) }, timeout);
 
-    function syncDefaultRankName() {
-        const el = $('rankFilename');
-        if (!el) return;
-        const known = Object.values(DEFAULT_RANK_NAME);
-        if (!el.value.trim() || known.includes(el.value.trim())) {
-            el.value = DEFAULT_RANK_NAME[currentMode] || 'competition.txt';
-        }
-    }
+/* ------------------------------------------------------------------ timer */
+function elapsed() { const t = S.timer; return t.t0 == null ? 0 : ((t.t1 ?? performance.now()) - t.t0) / 1000; }
+const wrongCount = () => S.log.filter(x => x.verdict === 'WRONG').length;
+function estScore(t) {
+  const T = TASKS[S.task].T;
+  return Math.max(0, 50 + 50 * (1 - Math.min(t, T) / T) - 10 * wrongCount());
+}
+function tickTimer() {
+  const T = TASKS[S.task].T, t = elapsed(), running = S.timer.t0 != null && S.timer.t1 == null;
+  $('#clock').textContent = `${fmtTime(t * 1000)} / ${fmtTime(T * 1000)}`;
+  const frac = Math.min(1, t / T), bar = $('#clockBar');
+  bar.style.width = (100 * (1 - frac)) + '%';
+  bar.style.background = frac < .6 ? 'var(--ok)' : frac < .85 ? 'var(--warn)' : 'var(--bad)';
+  const est = $('#est');
+  if (S.timer.t0 == null) { est.textContent = 'Bấm “Câu mới” khi câu bắt đầu'; return; }
+  const full = estScore(t), partial = kind() === 'trake' ? ` · đúng 1 phần ≈ ${Math.round(full / 2)}` : '';
+  est.replaceChildren('Nếu đúng ngay ≈ ', el('b', {}, Math.round(full) + ' điểm'), `${partial}${wrongCount() ? ` · sai ${wrongCount()} lần` : ''}`,
+    !running ? ' · đã dừng' : (t >= T ? ' · hết giờ' : ''));
+}
+setInterval(tickTimer, 250);
+// A "query" = one DRES task. Everything tied to it (clock, answers already sent, selection) is reset together.
+function resetQueryState(clearContent) {
+  S.timer = { t0: performance.now(), t1: null };
+  S.log = []; S.wrong.clear(); S.sel = null; S.answer = ''; S.confirmArmed = false;
+  $('#verdict').hidden = true;
+  if (clearContent) {
+    for (const k of Object.keys(S.data)) S.data[k] = null;
+    for (const k of Object.keys(S.text)) S.text[k] = '';
+    setError('');
+  }
+  post('/api/dres/new_query').catch(() => { });
+}
+function startQuery() { resetQueryState(true); renderAll(); tickTimer(); $('#qtext')?.focus(); }
+function ensureTimer(nextIfStopped = false) {
+  if (S.timer.t0 == null) S.timer = { t0: performance.now(), t1: null };
+  else if (nextIfStopped && S.timer.t1 != null) { resetQueryState(false); renderBar(); renderLog(); }   // searching after CORRECT = next question
+}
 
-    /* ── TKIS Search ────────────────────────────────────────── */
-
-    $('tkisSearchMode').addEventListener('change', function () {
-        const isImage = this.value === 'image';
-        $('tkisTextBox').style.display = isImage ? 'none' : 'block';
-        $('tkisImageBox').style.display = isImage ? 'block' : 'none';
+/* ---------------------------------------------------------------- queries */
+function renderQuery() {
+  const box = $('#query'); box.replaceChildren();
+  const k = kind();
+  const go = el('button', { class: 'btn primary', id: 'btnSearch', onclick: () => doSearch() }, 'Tìm  (Ctrl+Enter)');
+  const live = el('label', {}, el('input', { type: 'checkbox', checked: S.cfg.live, onchange: e => { S.cfg.live = e.target.checked; store.set('live', S.cfg.live); } }), 'Tự tìm khi ngừng gõ');
+  if (k === 'trake') {
+    const ta = el('textarea', {
+      id: 'qtext', rows: 5, value: S.text.trake, spellcheck: false,
+      placeholder: 'Mỗi dòng một sự kiện, theo đúng thứ tự thời gian. Có thể dán nguyên đoạn “(1) … (2) … (3) …”.',
     });
+    ta.addEventListener('input', () => { S.text.trake = ta.value; $('#evCount').textContent = parseEvents(ta.value).length + ' sự kiện'; queueLive(); });
+    box.append(ta, el('div', { class: 'qrow' }, go, live, el('span', { class: 'hint', id: 'evCount' }, parseEvents(S.text.trake).length + ' sự kiện'),
+      el('span', { class: 'hint' }, 'Khung nộp lên phải tăng dần; hệ thống tự căn chỉnh và bạn có thể đổi từng khung.')));
+    return;
+  }
+  const ta = el('textarea', {
+    id: 'qtext', rows: 3, value: S.text[S.task], spellcheck: false,
+    placeholder: k === 'qa' ? 'Mô tả sự kiện (nội dung được cung cấp dần — cứ gõ thêm)…' : 'Mô tả cảnh cần tìm (có thể gõ tiếng Việt hoặc tiếng Anh; cứ gõ thêm khi có thêm gợi ý)…',
+  });
+  ta.addEventListener('input', () => { S.text[S.task] = ta.value; queueLive(); });
+  box.append(ta);
+  if (k === 'qa') {
+    const qi = el('input', { type: 'text', id: 'qq', value: S.text.qaQuestion, placeholder: 'Câu hỏi (chỉ để bạn nhìn lại; không dùng để tìm)', autocomplete: 'off' });
+    qi.addEventListener('input', () => { S.text.qaQuestion = qi.value; });
+    box.append(qi);
+  }
+  const en = el('div', { class: 'en', id: 'enBox', hidden: true },
+    el('span', {}, 'Bản dịch EN gửi vào mô hình:'),
+    el('input', { type: 'text', id: 'enText', autocomplete: 'off', spellcheck: false, title: 'Sửa bản dịch rồi Enter để tìm lại' }),
+    el('button', { class: 'btn', onclick: () => doSearch({ en: $('#enText').value }) }, 'Tìm với bản này'));
+  en.querySelector('input').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doSearch({ en: e.target.value }); } });
+  box.append(el('div', { class: 'qrow' }, go, live, el('span', { class: 'hint' }, 'Tab để chuyển ô · ', el('kbd', {}, 'Ctrl+Enter'), ' tìm · ', el('kbd', {}, 'Ctrl+Shift+Enter'), ' nộp')), en);
+}
 
-    $('tkisUploadZone').addEventListener('click', () => $('tkisImageInput').click());
-    $('tkisImageInput').addEventListener('change', function () {
-        const file = this.files && this.files[0];
-        const box = $('tkisImagePreview');
-        if (!file) { box.style.display = 'none'; return; }
-        $('tkisImageThumb').src = URL.createObjectURL(file);
-        box.style.display = 'block';
+function parseEvents(text) {
+  const t = (text || '').trim();
+  if (!t) return [];
+  if (/\(\s*\d+\s*\)/.test(t)) {                       // "(1) ... (2) ..." pasted as one paragraph
+    return t.split(/\(\s*\d+\s*\)/).slice(1).map(s => s.trim().replace(/[.,;]+$/, '')).filter(Boolean);
+  }
+  return t.split(/\r?\n/).map(s => s.replace(/^\s*\d+[.)]\s*/, '').trim()).filter(Boolean);
+}
+
+let liveTimer = null;
+function queueLive() {
+  clearTimeout(liveTimer);
+  if (!S.cfg.live) return;
+  liveTimer = setTimeout(() => {
+    const ok = kind() === 'trake' ? parseEvents(S.text.trake).length > 0 : S.text[S.task].trim().length >= 3;
+    if (ok) doSearch({ live: true });
+  }, 700);
+}
+
+function setStatus(...parts) { $('#status').replaceChildren(...parts.filter(Boolean)); }
+function setError(msg) {
+  const e = $('#error'); e.hidden = !msg; e.replaceChildren();
+  if (msg) e.append(el('div', { class: 'err', role: 'alert' }, msg));
+}
+
+async function doSearch(opts = {}) {
+  clearTimeout(liveTimer);
+  const k = kind(), task = S.task, seq = ++S.seq;
+  if (S.ctrl) S.ctrl.abort();
+  const ctrl = S.ctrl = new AbortController();
+  let path, body;
+  if (k === 'trake') {
+    const events = parseEvents(S.text.trake);
+    if (!events.length) { setError('Chưa có sự kiện nào'); return; }
+    path = '/api/trake';
+    body = S.legacy ? { description: events.join('; ').slice(0, 2000), events, top_k: 20 } : { events, top_k: 20 };
+  } else {
+    const q = S.text[task].trim();
+    if (!q) { setError('Chưa nhập mô tả'); return; }
+    if (S.legacy) { path = '/api/search?expand_neighbors=false'; body = { query: q.slice(0, 500), top_k: Math.min(S.cfg.top, 100) }; }
+    else { path = '/api/search'; body = { query: q, top_k: S.cfg.top }; if (opts.en) body.en_override = opts.en; }
+  }
+  ensureTimer(true); setError('');
+  if (!opts.live) showSkeleton();
+  const t0 = performance.now();
+  try {
+    let r = await api(path, { method: 'POST', body: JSON.stringify(body), signal: ctrl.signal });
+    if (S.legacy) r = k === 'trake' ? normTrake(r) : normSearch(r);
+    if (seq !== S.seq) return;                                  // a newer search superseded this one
+    r._client_ms = performance.now() - t0;
+    if (k === 'trake') for (const v of r.results) v.chosen = v.frames.map(f => ({ ...f }));
+    S.data[task] = r;
+    if (S.sel) S.sel = null;
+    renderAll();
+  } catch (e) {
+    if (e.name === 'AbortError' || seq !== S.seq) return;
+    setError(e.message); renderResults();
+  }
+}
+// ---- the previous backend (api/app.py before the PE-Core-only rewrite) answers in a different shape ----
+function normSearch(raw) {
+  const results = (raw.results || []).map(x => {
+    const t = x.timestamp, hasT = typeof t === 'number' && (t > 0 || x.frame_idx === 0);
+    return {
+      video_id: x.video_id, frame_idx: x.frame_idx,
+      ms: Math.round((hasT ? t : x.frame_idx / 25) * 1000),
+      fps: t > 0 && x.frame_idx > 0 ? x.frame_idx / t : 25,
+      score: x.confidence ?? x.final_score ?? 0,
+    };
+  });
+  return { query: raw.query, latency_ms: raw.latency_ms ?? 0, timings: {}, results };
+}
+function normTrake(raw) {
+  const results = (raw.results || []).map(v => {
+    const f0 = (v.frames && v.frames.length ? v.frames[0] : v.frame_idx) || 0;
+    const fps = v.timestamp > 0 && f0 > 0 ? f0 / v.timestamp : 25;
+    const evs = v.event_frames && v.event_frames.length ? v.event_frames : (v.frames || []).map(f => ({ event: '', frame_idx: f, score: 0 }));
+    return {
+      video_id: v.video_id, fps, score: v.score ?? 0,
+      frames: evs.map(e => ({ event: e.event, frame_idx: e.frame_idx, ms: Math.round(e.frame_idx / fps * 1000), score: e.score ?? 0, alts: [] })),
+    };
+  });
+  return { latency_ms: raw.latency_ms ?? 0, timings: {}, events_en: [], results };
+}
+function showSkeleton() {
+  const box = $('#results'); box.replaceChildren(el('div', { class: 'grid' }, ...Array.from({ length: 12 }, () => el('div', { class: 'skeleton' }))));
+}
+
+/* ---------------------------------------------------------------- results */
+const keyOf = (v, f) => `${v}|${f}`;
+function statusLine(r, count, unit) {
+  const tm = r.timings || {};
+  const bits = Object.entries({ dịch: tm.translate_ms, 'mã hóa': tm.encode_ms, tìm: tm.search_ms, 'căn chỉnh': tm.align_ms })
+    .filter(([, v]) => v != null).map(([k, v]) => `${k} ${Math.round(v)}`).join(' · ');
+  setStatus(el('span', {}, el('b', {}, count), ' ', unit),
+    el('span', {}, 'server ', el('b', {}, Math.round(r.latency_ms) + ' ms'), bits ? ` (${bits})` : ''),
+    r._client_ms != null ? el('span', {}, 'tới trình duyệt ', el('b', {}, Math.round(r._client_ms) + ' ms')) : null);
+}
+function renderResults() {
+  const box = $('#results'), r = S.data[S.task];
+  box.replaceChildren();
+  if (!r) {
+    setStatus();
+    box.append(el('div', { class: 'empty' }, kind() === 'trake'
+      ? 'Nhập các sự kiện (một dòng một sự kiện) rồi bấm Tìm.'
+      : 'Nhập mô tả rồi bấm Tìm. Kết quả hiện ngay bên dưới; bấm một khung để chọn làm đáp án.'));
+    return;
+  }
+  if (kind() === 'trake') return renderTrake(r);
+  const enBox = $('#enBox');
+  if (enBox) { enBox.hidden = !r.query_en || r.query_en === S.text[S.task].trim(); if (!enBox.hidden) $('#enText').value = r.query_en; }
+  statusLine(r, r.results.length, 'khung hình');
+  if (!r.results.length) { box.append(el('div', { class: 'empty' }, 'Không có kết quả.')); return; }
+  const grid = el('div', { class: 'grid', role: 'list' });
+  r.results.forEach((it, i) => {
+    const k = keyOf(it.video_id, it.frame_idx);
+    const card = el('button', {
+      class: 'card' + (S.wrong.has(k) ? ' wrong' : ''), role: 'listitem', dataset: { k },
+      'aria-pressed': S.sel && S.sel.key === k ? 'true' : 'false',
+      title: `${it.video_id} · ${fmtTime(it.ms)} · frame ${it.frame_idx}`,
+      onclick: () => selectKis(it), ondblclick: () => openViewer(it),
+    },
+      img(it.video_id, it.frame_idx), el('span', { class: 'rk' }, '#' + (i + 1)),
+      el('span', { class: 'play', role: 'button', title: 'Xem video', onclick: e => { e.stopPropagation(); openViewer(it); } }, '▶'),
+      el('div', { class: 'meta' }, el('b', {}, it.video_id), el('span', { class: 'muted' }, fmtTime(it.ms), ' · ', it.score.toFixed(3))));
+    grid.append(card);
+  });
+  box.append(grid);
+}
+
+function renderTrake(r) {
+  const box = $('#results');
+  statusLine(r, r.results.length, 'video');
+  const ev = (r.events_en || []);
+  if (ev.length) box.append(el('div', { class: 'hint', style: 'margin-bottom:8px' }, 'Bản dịch EN: ', ev.map((t, i) => `(${i + 1}) ${t}`).join('  ')));
+  r.results.forEach((v, i) => {
+    const selected = S.sel && S.sel.kind === 'trake' && S.sel.row === i;
+    const wrongRow = S.wrong.has(trakeKey(v.video_id, v.chosen));
+    const row = el('article', { class: 'trow' + (selected ? ' picked' : '') + (wrongRow ? ' wrong' : ''), dataset: { i } });
+    const altBox = el('div', { class: 'alts', hidden: true });
+    let openAlt = -1;
+    const cells = v.chosen.map((f, j) => {
+      const bad = j > 0 && f.frame_idx <= v.chosen[j - 1].frame_idx;
+      const swap = !(v.frames[j].alts || []).length ? null : el('button', { class: 'swap', title: 'Chọn khung khác cho sự kiện này', onclick: e => {
+        e.stopPropagation();
+        if (openAlt === j) { altBox.hidden = true; openAlt = -1; return; }
+        openAlt = j; fillAlts(altBox, v, j, i); altBox.hidden = false;
+      } }, 'đổi ▾');
+      return el('div', { class: 'tcell' + (bad ? ' bad' : ''), dataset: { j } },
+        el('div', { style: 'cursor:pointer', onclick: () => selectTrake(v, i) }, img(v.video_id, f.frame_idx)),
+        el('div', { class: 'ev', title: f.event }, el('b', {}, (j + 1) + '. '), f.event),
+        el('div', { class: 'ft' }, el('span', { class: 'muted' }, fmtTime(f.ms), idMode() === 'ms' ? ` · ${Math.round(f.ms)} ms` : ` · #${f.frame_idx}`), swap));
     });
+    row.append(
+      el('header', {},
+        el('span', { class: 'rank' }, '#' + (i + 1)), el('b', {}, v.video_id),
+        el('span', { class: 'muted' }, 'điểm ', v.score.toFixed(3)), el('span', { class: 'spacer' }),
+        el('button', { class: 'btn', onclick: () => openViewer({ video_id: v.video_id, ms: v.chosen[0].ms, frame_idx: v.chosen[0].frame_idx, fps: v.fps }) }, '▶ Xem'),
+        el('button', { class: 'btn' + (selected ? '' : ' primary'), onclick: () => selectTrake(v, i) }, selected ? '✓ Đã chọn' : 'Chọn video này')),
+      el('div', { class: 'chain' }, cells), altBox);
+    box.append(row);
+  });
+  if (!r.results.length) box.append(el('div', { class: 'empty' }, 'Không có kết quả.'));
+}
+function fillAlts(box, v, j, rowIdx) {
+  box.replaceChildren();
+  const cur = v.chosen[j].frame_idx;
+  for (const a of (v.frames[j].alts || [])) {
+    box.append(el('button', {
+      'aria-pressed': a.frame_idx === cur ? 'true' : 'false', title: `frame ${a.frame_idx} · ${a.score.toFixed(3)}`,
+      onclick: () => {
+        v.chosen[j] = { ...v.chosen[j], frame_idx: a.frame_idx, ms: a.ms, score: a.score };
+        selectTrake(v, rowIdx, j);
+      },
+    }, img(v.video_id, a.frame_idx), el('div', {}, fmtTime(a.ms), ' · ', a.score.toFixed(3))));
+  }
+  if (!box.children.length) box.append(el('span', { class: 'muted' }, 'Không có khung thay thế.'));
+}
+const trakeKey = (vid, chosen) => `${vid}|${chosen.map(c => c.frame_idx).join(',')}`;
 
-    $('tkisQuery').addEventListener('input', function () {
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => {
-            if (this.value.trim().length >= 3) doTkisSearch();
-        }, 800);
-    });
+/* -------------------------------------------------------------- selection */
+function selectKis(it) {
+  S.sel = { kind: 'kis', key: keyOf(it.video_id, it.frame_idx), video_id: it.video_id, frame_idx: it.frame_idx, ms: it.ms, fps: it.fps };
+  S.confirmArmed = false;
+  renderBar(); markSelected();
+  if (kind() === 'qa') { const a = $('#ans'); if (a) a.focus(); }
+}
+function selectTrake(v, row, keepAltEvent = -1) {
+  S.sel = { kind: 'trake', row, video_id: v.video_id, fps: v.fps, chosen: v.chosen };
+  S.confirmArmed = false;
+  renderBar();
+  renderResults();
+  // re-open the alternatives of the event being edited so several frames can be fixed in a row
+  if (keepAltEvent >= 0) $$('.swap', $$('.trow')[row])[keepAltEvent]?.click();
+}
+function markSelected() {
+  $$('.card').forEach(c => c.setAttribute('aria-pressed', S.sel && c.dataset.k === S.sel.key ? 'true' : 'false'));
+}
+function clearSel() { S.sel = null; S.confirmArmed = false; renderBar(); markSelected(); if (kind() === 'trake') renderResults(); }
 
-    $('tkisQuery').addEventListener('keydown', e => {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doTkisSearch(); }
-    });
+function currentPayloadReq() {
+  const s = S.sel; if (!s) return null;
+  const k = kind();
+  if (k === 'kis') {
+    const pm = S.cfg.pm * 1000;
+    return { kind: 'kis', video_id: s.video_id, start_ms: Math.max(0, Math.round(s.ms - pm)), end_ms: Math.round(s.ms + pm) };
+  }
+  if (k === 'qa') return { kind: 'qa', video_id: s.video_id, answer: S.answer, time_ms: Math.round(s.ms) };
+  const mode = idMode();
+  return { kind: 'trake', video_id: s.video_id, frames: s.chosen.map(c => mode === 'ms' ? Math.round(c.ms) : c.frame_idx) };
+}
+function previewText(p) {
+  if (p.kind === 'kis') return `KIS  ${p.video_id}  start=${p.start_ms}  end=${p.end_ms}`;
+  if (p.kind === 'qa') return `QA-${(p.answer || '').replace(/\s+/g, ' ').trim() || '⟨chưa có câu trả lời⟩'}-${p.video_id}-${p.time_ms}`;
+  return `TR-${p.video_id}-${p.frames.join(',')}`;
+}
+function validity(p) {
+  if (!p) return 'Chưa chọn đáp án';
+  if (p.kind === 'qa' && !(p.answer || '').trim()) return 'Nhập câu trả lời';
+  if (p.kind === 'trake') {
+    for (let i = 1; i < p.frames.length; i++) if (p.frames[i] <= p.frames[i - 1]) return 'Các khung phải tăng dần theo thời gian';
+    if (p.frames.some(f => f < 0)) return 'Có sự kiện chưa có khung';
+  }
+  return '';
+}
 
-    window.doTkisSearch = async function () {
-        const mode = $('tkisSearchMode').value;
-        const topK = parseInt($('tkisTopK').value) || 100;
-        setLoading('tkisSearchBtn', true);
-        const t0 = performance.now();
+function renderBar() {
+  const s = S.sel, k = kind();
+  $('#barEmpty').hidden = !!s; $('#barSel').hidden = !s;
+  if (!s) { syncBarHeight(); return; }
+  $('#barVideo').textContent = s.video_id;
+  const th = $('#barThumbs'); th.replaceChildren();
+  if (s.kind === 'trake') {
+    s.chosen.forEach((c, j) => th.append(el('figure', {}, img(s.video_id, c.frame_idx), el('figcaption', {}, (j + 1) + ' · ' + fmtTime(c.ms)))));
+  } else th.append(el('figure', {}, img(s.video_id, s.frame_idx)));
+  $('#barTimeWrap').hidden = k === 'trake';
+  $('#barAnsWrap').hidden = k !== 'qa';
+  if (k !== 'trake') { $('#selMs').value = Math.round(s.ms); $('#barTimeHuman').textContent = '(' + fmtTime(s.ms) + ')'; }
+  if (k === 'qa') $('#ans').value = S.answer;
+  updatePayload();
+  syncBarHeight();
+}
+function updatePayload() {
+  const p = currentPayloadReq(), bad = validity(p);
+  const box = $('#barPayload');
+  box.textContent = p ? previewText(p) + (bad ? `   ⚠ ${bad}` : '') : '';
+  box.classList.toggle('bad', !!bad);
+  const b = $('#btnSubmit');
+  const dupe = p && S.sel && S.log.some(x => x.ckey === previewText(p) && x.verdict !== 'ERROR');
+  b.disabled = !!bad || !!dupe || !S.dres.logged_in;
+  b.textContent = S.confirmArmed ? 'BẤM LẠI ĐỂ NỘP' : (dupe ? 'ĐÃ NỘP' : 'NỘP ĐÁP ÁN');
+  b.title = !S.dres.logged_in ? 'Đăng nhập DRES trước' : (dupe ? 'Đáp án này đã nộp trong câu này' : 'Nộp lên DRES (Ctrl+Shift+Enter)');
+}
+function syncBarHeight() {
+  requestAnimationFrame(() => document.documentElement.style.setProperty('--barh', $('#answer').offsetHeight + 'px'));
+}
 
-        try {
-            if (mode === 'image') {
-                const file = $('tkisImageInput').files && $('tkisImageInput').files[0];
-                if (!file) { toast('Select an image first', 'error'); return; }
-                const fd = new FormData();
-                fd.append('file', file);
-                fd.append('top_k', String(topK));
-                fd.append('use_full_funnel', 'true');
-                fd.append('use_bm25', 'true');
-                fd.append('use_cross_encoder', 'true');
-                fd.append('expand_neighbors', 'false');
-                fd.append('dedup', 'true');
-                const r = await fetch(API + '/api/search-image', { method: 'POST', body: fd });
-                if (!r.ok) throw new Error((await r.json()).detail || 'Image search failed');
-                const d = await r.json();
-                currentResults = d.results || [];
-                renderTkis(d);
-                updateCsvExport();
-                return;
-            }
+/* ----------------------------------------------------------------- submit */
+let submitting = false;
+async function submit(force = false) {
+  const p = currentPayloadReq(), bad = validity(p);
+  if (!p || bad || submitting) return;
+  if (!S.dres.logged_in) { openDres(); return; }
+  // the hotkey bypasses the (disabled) button, so the duplicate rule must live here too
+  if (!force && S.log.some(x => x.ckey === previewText(p) && x.verdict !== 'ERROR')) return;
+  if (S.cfg.confirm && !S.confirmArmed) {
+    S.confirmArmed = true; updatePayload();
+    setTimeout(() => { if (S.confirmArmed) { S.confirmArmed = false; updatePayload(); } }, 3000);
+    return;
+  }
+  S.confirmArmed = false; submitting = true;
+  const btn = $('#btnSubmit'); btn.disabled = true; btn.textContent = 'Đang nộp…';
+  const wrongKey = kind() === 'trake' ? trakeKey(S.sel.video_id, S.sel.chosen) : S.sel.key;
+  try {
+    ensureTimer();
+    const res = await post('/api/dres/submit', { ...p, force }, 15000);
+    const item = { ckey: previewText(p), summary: res.summary || previewText(p), verdict: res.verdict, description: res.description, ms: res.latency_ms, at: elapsed() };
+    if (!res.duplicate && res.verdict !== 'ERROR') S.log.push(item);   // a rejected request was never judged
+    showVerdict(res, wrongKey);
+  } catch (e) {
+    showVerdict({ verdict: 'ERROR', description: e.message, ok: false }, wrongKey);
+    if (e.status === 401) refreshDres();
+  } finally { submitting = false; renderLog(); updatePayload(); tickTimer(); }
+}
+function showVerdict(res, wrongKey) {
+  const v = $('#verdict'); v.hidden = false; v.className = 'verdict';
+  const verdict = res.verdict;
+  let head;
+  if (res.duplicate) { v.classList.add('wait'); head = 'Đã nộp đáp án này rồi — không nộp lại'; }
+  else if (verdict === 'CORRECT') {
+    v.classList.add('ok'); head = '✓ ĐÚNG'; if (S.timer.t1 == null) S.timer.t1 = performance.now();
+  } else if (verdict === 'WRONG') {
+    v.classList.add('no'); head = '✗ SAI  (−10 điểm)'; S.wrong.add(wrongKey); paintWrong();
+  } else if (verdict === 'INDETERMINATE' || verdict === 'UNDECIDABLE') { v.classList.add('wait'); head = 'Đang chờ giám khảo chấm'; }
+  else { v.classList.add('no'); head = verdict === 'UNKNOWN' ? '? Chưa rõ DRES đã nhận chưa' : 'Không nộp được';
+    if (/collection/i.test(res.description || '')) head += ' — bấm chấm DRES, điền “Tên collection” rồi nộp lại'; }
+  v.replaceChildren(...[head, el('small', {}, [res.description, res.latency_ms != null ? `${Math.round(res.latency_ms)} ms` : ''].filter(Boolean).join(' · ')),
+    verdict === 'CORRECT' ? el('button', { class: 'btn', onclick: startQuery }, 'Câu tiếp theo ⟲') : null,
+    verdict === 'UNKNOWN' ? el('button', { class: 'btn', onclick: () => submit(true) }, 'Nộp lại (đã kiểm tra DRES)') : null].filter(Boolean));
+  syncBarHeight();
+}
+function paintWrong() {
+  if (kind() === 'trake') return renderResults();
+  $$('.card').forEach(c => c.classList.toggle('wrong', S.wrong.has(c.dataset.k)));
+}
+function renderLog() {
+  $('#logN').textContent = S.log.length;
+  const ol = $('#logList'); ol.replaceChildren();
+  S.log.forEach(x => ol.append(el('li', {},
+    el('span', { class: 'tag ' + (x.verdict === 'CORRECT' || x.verdict === 'WRONG' ? x.verdict : 'other') }, x.verdict), ' ',
+    el('span', { class: 'mono' }, x.summary), ' ', el('span', { class: 'muted' }, `· ${fmtTime(x.at * 1000)}`))));
+  if (!S.log.length) ol.append(el('li', { class: 'muted' }, 'Chưa nộp gì.'));
+}
 
-            const q = $('tkisQuery').value.trim();
-            if (!q) return toast('Enter a description', 'error');
-            const r = await fetch(API + '/api/search?expand_neighbors=false&dedup=true', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: q, top_k: topK, model: 'fusion', task_type: 'KIS' }),
-            });
-            if (!r.ok) throw new Error((await r.json()).detail || 'Search failed');
-            const d = await r.json();
-            currentResults = d.results || [];
-            renderTkis(d);
-            updateCsvExport();
-        } catch (e) {
-            toast(e.message, 'error');
-        } finally {
-            setLoading('tkisSearchBtn', false);
-        }
-    };
-
-    function renderTkis(data) {
-        const p = $('resultsPanel');
-        if (!data.results || !data.results.length) {
-            p.innerHTML = '<div class="empty-state"><div class="icon">\u{1F615}</div><p>No results found</p></div>';
-            return;
-        }
-        p.innerHTML = data.results.map((r, i) => `
-            <div class="result-card" onclick="openVideoModal('${escapeJs(r.video_id)}',${r.frame_idx},${r.timestamp})">
-                <div class="frame-preview">
-                    <img src="/api/frame/${encodeURIComponent(r.video_id)}/${r.frame_idx}"
-                         onerror="this.style.display='none';this.parentElement.textContent='Frame #${r.frame_idx}'"
-                         alt="Frame ${r.frame_idx}" loading="lazy">
-                </div>
-                <div class="card-info">
-                    <div class="video-id">${escapeHtml(r.video_id)}</div>
-                    <div class="frame-meta">
-                        <span>Frame ${r.frame_idx}</span>
-                        <span>${r.timestamp.toFixed(1)}s</span>
-                    </div>
-                    <div class="scores">
-                        <span class="score-badge">${r.clip_score.toFixed(3)}</span>
-                        <span class="score-badge">${r.siglip2_score.toFixed(3)}</span>
-                        <span class="score-badge best">\u2B50 ${(r.confidence ?? r.final_score ?? 0).toFixed(3)}</span>
-                    </div>
-                </div>
-            </div>`).join('');
+/* ----------------------------------------------------------------- viewer */
+let vctx = null, viewerTimer = null;
+const bigURL = (v, f) => thumbURL(v, f) + (S.legacy ? '' : '?w=1280');
+function showKeyframe(v, f) { const i = $('#vFrame'); i.onerror = () => { i.onerror = null; i.src = PLACEHOLDER; }; i.src = bigURL(v, f); i.hidden = false; $('#vVideo').hidden = true; }
+async function openViewer(it) {
+  const dlg = $('#viewer'), vid = $('#vVideo'), msg = $('#vMsg'), strip = $('#vStrip');
+  vctx = { ...it, ms: it.ms, key: keyOf(it.video_id, it.frame_idx) };
+  $('#vTitle').textContent = `${it.video_id} · ${fmtTime(it.ms)}`;
+  msg.hidden = true; strip.replaceChildren();
+  $('#vActs').hidden = kind() === 'trake';
+  vid.removeAttribute('src'); vid.load();
+  // The video is a convenience, the keyframe is the fallback: any failure (file missing, drive dropped, codec, too slow)
+  // swaps the player for the big keyframe of the selected moment.
+  const fImg = $('#vFrame'); fImg.hidden = true; vid.hidden = false; clearTimeout(viewerTimer); $('#vNow').textContent = '';
+  const myKey = vctx.key;
+  const fallback = why => {
+    if (!dlg.open || !vctx || vctx.video_id !== it.video_id) return;
+    showKeyframe(vctx.video_id, vctx.frame_idx); msg.hidden = false; msg.textContent = why + ' → đang hiện keyframe thay cho video. Bấm ảnh nhỏ bên dưới để đổi thời điểm.';
+  };
+  vid.onloadedmetadata = () => { vid.currentTime = Math.max(0, it.ms / 1000); };
+  vid.onloadeddata = () => { clearTimeout(viewerTimer); };
+  vid.onerror = () => fallback('Không phát được video (thiếu file, lỗi ổ đĩa hoặc codec)');
+  viewerTimer = setTimeout(() => { if (vid.readyState < 2) fallback('Video tải quá chậm'); }, 6000);
+  vid.ontimeupdate = () => { $('#vNow').textContent = 'Đang ở ' + fmtTime(vid.currentTime * 1000) + ` (${Math.round(vid.currentTime * 1000)} ms)`; };
+  vid.src = `/api/video/${encodeURIComponent(it.video_id)}`;
+  if (!dlg.open) dlg.showModal();
+  if (S.legacy) return;
+  try {
+    const n = await api(`/api/neighbors/${encodeURIComponent(it.video_id)}/${it.frame_idx}?n=14`);
+    strip.replaceChildren();
+    for (const f of n.items) {
+      strip.append(el('button', {
+        'aria-pressed': f.frame_idx === it.frame_idx ? 'true' : 'false', title: `frame ${f.frame_idx}`,
+        onclick: () => {
+          $$('#vStrip button').forEach(b => b.setAttribute('aria-pressed', 'false'));
+          strip.querySelector(`[title="frame ${f.frame_idx}"]`)?.setAttribute('aria-pressed', 'true');
+          vid.currentTime = f.ms / 1000; vctx = { ...vctx, ms: f.ms, frame_idx: f.frame_idx, key: keyOf(it.video_id, f.frame_idx) };
+          if (!$('#vFrame').hidden) showKeyframe(it.video_id, f.frame_idx);
+        },
+        ondblclick: () => { vctx = { ...vctx, ms: f.ms, frame_idx: f.frame_idx, key: keyOf(it.video_id, f.frame_idx) }; pickFromViewer(); },
+      }, img(it.video_id, f.frame_idx), el('div', {}, fmtTime(f.ms))));
     }
+    strip.querySelector('[aria-pressed=true]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  } catch { /* strip is optional */ }
+}
+function pickFromViewer() {
+  if (!vctx || kind() === 'trake') return;
+  const ms = Math.round($('#vVideo').currentTime * 1000);
+  const player = $('#vVideo'), playerOk = !player.hidden && player.readyState >= 2;
+  const useNow = playerOk && (!player.paused || Math.abs(ms - vctx.ms) > 400) ? ms : vctx.ms;
+  const fps = vctx.fps || 25;
+  const frame = Math.round(useNow / 1000 * fps);
+  selectKis({ video_id: vctx.video_id, frame_idx: useNow === vctx.ms ? vctx.frame_idx : frame, ms: useNow, fps: vctx.fps, score: 0 });
+  $('#viewer').close();
+}
 
-    /* ── Q&A Search ─────────────────────────────────────────── */
+/* ------------------------------------------------------------------- DRES */
+function renderDresChip() {
+  const d = S.dres, chip = $('#dresChip'), t = $('#dresText');
+  chip.className = 'chip ' + (!d.logged_in ? 'off' : d.evaluation_id ? 'on' : 'warn');
+  if (!d.logged_in) t.textContent = 'DRES: chưa đăng nhập';
+  else {
+    const ev = d.evaluations.find(e => e.id === d.evaluation_id);
+    t.textContent = ev ? `${d.username} · ${ev.name || ev.id}` : `${d.username} · chưa có evaluation ACTIVE`;
+  }
+  updatePayload();
+}
+async function refreshDres() {
+  try { Object.assign(S.dres, await api('/api/dres/state')); } catch { /* server down: keep last */ }
+  renderDresChip();
+}
+function fillEvals() {
+  const d = S.dres, sel = $('#dEval'), wrap = $('#dEvWrap');
+  wrap.hidden = !d.logged_in; $('#dOut').hidden = !d.logged_in; $('#dRefresh').hidden = !d.logged_in;
+  sel.replaceChildren();
+  for (const e of d.evaluations) sel.append(el('option', { value: e.id, selected: e.id === d.evaluation_id }, `${e.name || e.id}  [${e.status}]`));
+  if (!d.evaluations.length) sel.append(el('option', { value: '' }, '(DRES chưa có evaluation nào)'));
+  $('#dGo').textContent = d.logged_in ? 'Kết nối lại' : 'Kết nối';
+}
+function openDres() {
+  $('#dBase').value = S.dres.base_url || store.get('dresBase', '') || (S.status && S.status.dres_base_url) || 'https://eventretrieval.one';
+  $('#dUser').value = store.get('dresUser', '') || ''; $('#dPass').value = ''; $('#dMsg').textContent = '';
+  $('#dColl').value = S.dres.collection || store.get('dresColl', '') || '';
+  fillEvals(); if (!$('#dresDlg').open) $('#dresDlg').showModal();
+  (S.dres.logged_in ? $('#dEval') : ($('#dUser').value ? $('#dPass') : $('#dUser'))).focus();
+}
+async function dresConnect() {
+  const msg = $('#dMsg'), mode = $('#dMode [aria-selected=true]').dataset.m, base = $('#dBase').value.trim();
+  msg.textContent = 'Đang kết nối…'; $('#dGo').disabled = true;
+  try {
+    const body = mode === 'login' ? { base_url: base, username: $('#dUser').value.trim(), password: $('#dPass').value }
+                                  : { base_url: base, session_id: $('#dSid').value.trim() };
+    const st = await post(mode === 'login' ? '/api/dres/login' : '/api/dres/session', body, 20000);
+    Object.assign(S.dres, st); store.set('dresBase', base); if (mode === 'login') store.set('dresUser', $('#dUser').value.trim());
+    if ($('#dColl').value.trim() !== (S.dres.collection || '')) await saveCollection();
+    $('#dPass').value = ''; $('#dSid').value = '';
+    renderDresChip(); fillEvals();
+    if (st.evaluation_id) { $('#dresDlg').close(); }
+    else msg.textContent = 'Đã đăng nhập nhưng chưa có evaluation nào ACTIVE — bấm “Làm mới” khi câu hỏi bắt đầu.';
+  } catch (e) { msg.textContent = '✗ ' + e.message; }
+  finally { $('#dGo').disabled = false; }
+}
 
-    $('qaQuestion').addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); doQaSearch(); }
-    });
+/* ------------------------------------------------------------------- init */
+function renderAll() { renderTabs(); renderQuery(); renderResults(); renderBar(); renderLog(); tickTimer(); if (!S.log.length) $('#verdict').hidden = true; }
+function renderTabs() { $$('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.task === S.task ? 'true' : 'false')); }
+function setTask(t) {
+  if (!TASKS[t] || t === S.task) return;
+  S.task = t; store.set('task', t); S.sel = null; S.confirmArmed = false; $('#verdict').hidden = true;
+  setError(''); renderAll(); $('#qtext')?.focus();
+}
+function applyCfg() {
+  document.documentElement.style.setProperty('--card-min', S.cfg.thumb + 'px');
+}
 
-    window.doQaSearch = async function () {
-        const description = $('qaDescription').value.trim();
-        const question = $('qaQuestion').value.trim();
-        const topK = parseInt($('qaTopK').value) || 100;
-        if (!description) return toast('Enter a description', 'error');
-        if (!question) return toast('Enter a question', 'error');
-        setLoading('qaSearchBtn', true);
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) setTask(b.dataset.task); });
+$('#btnNew').addEventListener('click', startQuery);
+$('#dresChip').addEventListener('click', openDres);
+$('#btnLog').addEventListener('click', () => { const d = $('#drawer'); d.hidden = !d.hidden; renderLog(); });
+$('#btnCfg').addEventListener('click', () => {
+  $('#cThumb').value = S.cfg.thumb; $('#cTop').value = String(S.cfg.top); $('#cPm').value = S.cfg.pm;
+  $('#cId').value = idMode();
+  $('#cLive').checked = S.cfg.live; $('#cConfirm').checked = S.cfg.confirm; $('#cfgDlg').showModal();
+});
+$('#cThumb').addEventListener('input', e => { S.cfg.thumb = +e.target.value; store.set('thumb', S.cfg.thumb); applyCfg(); });
+$('#cTop').addEventListener('change', e => { S.cfg.top = +e.target.value; store.set('top', S.cfg.top); });
+$('#cPm').addEventListener('change', e => { S.cfg.pm = Math.max(0, +e.target.value || 0); store.set('pm', S.cfg.pm); updatePayload(); });
+$('#cId').addEventListener('change', e => { S.cfg.idMode = e.target.value; store.set('idMode', S.cfg.idMode); updatePayload(); if (kind() === 'trake') renderResults(); });
+$('#cLive').addEventListener('change', e => { S.cfg.live = e.target.checked; store.set('live', S.cfg.live); renderQuery(); });
+$('#cConfirm').addEventListener('change', e => { S.cfg.confirm = e.target.checked; store.set('confirm', S.cfg.confirm); });
+$('#dMode').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  $$('#dMode button').forEach(x => x.setAttribute('aria-selected', x === b ? 'true' : 'false'));
+  $('#dLogin').style.display = b.dataset.m === 'login' ? 'grid' : 'none';
+  $('#dSess').style.display = b.dataset.m === 'session' ? 'block' : 'none';
+});
+$('#dresForm').addEventListener('submit', e => { e.preventDefault(); dresConnect(); });
+async function saveCollection() {
+  const c = $('#dColl').value.trim(); store.set('dresColl', c);
+  try { Object.assign(S.dres, await post('/api/dres/collection', { collection: c })); $('#dMsg').textContent = c ? `Sẽ gửi kèm collection “${c}” khi nộp KIS.` : 'Không gửi collection.'; } catch (e) { $('#dMsg').textContent = '✗ ' + e.message; }
+}
+$('#dColl').addEventListener('change', saveCollection);
+$('#dClose').addEventListener('click', () => $('#dresDlg').close());
+$('#dOut').addEventListener('click', async () => { await post('/api/dres/logout').catch(() => { }); await refreshDres(); fillEvals(); });
+$('#dRefresh').addEventListener('click', async () => {
+  try { Object.assign(S.dres, await post('/api/dres/refresh')); renderDresChip(); fillEvals(); $('#dMsg').textContent = ''; }
+  catch (e) { $('#dMsg').textContent = '✗ ' + e.message; }
+});
+$('#dEval').addEventListener('change', async e => {
+  try { Object.assign(S.dres, await post('/api/dres/select', { evaluation_id: e.target.value })); renderDresChip(); } catch (er) { $('#dMsg').textContent = '✗ ' + er.message; }
+});
+$('#selMs').addEventListener('input', e => {
+  if (!S.sel || S.sel.kind !== 'kis') return;
+  const ms = Math.max(0, +e.target.value || 0); S.sel.ms = ms; S.confirmArmed = false;
+  $('#barTimeHuman').textContent = '(' + fmtTime(ms) + ')'; updatePayload();
+});
+$('#ans').addEventListener('input', e => { S.answer = e.target.value; S.confirmArmed = false; updatePayload(); });
+$('#ans').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); submit(); } });
+$('#btnSubmit').addEventListener('click', () => submit());
+$('#btnClear').addEventListener('click', clearSel);
+$('#btnView').addEventListener('click', () => {
+  const s = S.sel; if (!s) return;
+  if (s.kind === 'trake') openViewer({ video_id: s.video_id, ms: s.chosen[0].ms, frame_idx: s.chosen[0].frame_idx, fps: s.fps });
+  else openViewer({ video_id: s.video_id, ms: s.ms, frame_idx: s.frame_idx, fps: s.fps });
+});
+$('#vClose').addEventListener('click', () => $('#viewer').close());
+$('#viewer').addEventListener('close', () => { clearTimeout(viewerTimer); const v = $('#vVideo'); v.pause(); v.removeAttribute('src'); v.load(); });
+$('#vPick').addEventListener('click', pickFromViewer);
+$('#vBack').addEventListener('click', () => { const v = $('#vVideo'); v.currentTime = Math.max(0, v.currentTime - 1); });
+$('#vFwd').addEventListener('click', () => { const v = $('#vVideo'); v.currentTime += 1; });
 
-        try {
-            const r = await fetch(API + '/api/qa/search', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ description, question, top_k: topK }),
-            });
-            if (!r.ok) throw new Error((await r.json()).detail || 'Q&A search failed');
-            const d = await r.json();
-            currentResults = d.results || [];
-            lastQaData = d;
-            renderQa(d, question);
-            updateCsvExport();
-        } catch (e) {
-            toast(e.message, 'error');
-        } finally {
-            setLoading('qaSearchBtn', false);
-        }
-    };
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.shiftKey) { e.preventDefault(); submit(); return; }
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); doSearch(); return; }
+  if (e.altKey && /^[1-4]$/.test(e.key)) { e.preventDefault(); setTask(['tkis', 'vkis', 'qa', 'trake'][+e.key - 1]); return; }
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '');
+  if (e.key === '/' && !typing) { e.preventDefault(); $('#qtext')?.focus(); }
+  if (e.key === 'Escape' && !document.querySelector('dialog[open]') && S.sel) clearSel();
+});
+window.addEventListener('resize', syncBarHeight);
 
-    function renderQa(data, question) {
-        const p = $('resultsPanel');
-        if (!data.results || !data.results.length) {
-            p.innerHTML = '<div class="empty-state"><div class="icon">\u{1F615}</div><p>No results found</p></div>';
-            return;
-        }
-        let results = data.results;
-        if (!$('qaIncludeVague').checked) {
-            results = results.filter(r => !r.is_vague);
-        }
-        p.innerHTML = results.map((r, i) => `
-            <div class="result-card" onclick="openVideoModal('${escapeJs(r.video_id)}',${r.frame_idx},${r.timestamp || 0})">
-                <div class="frame-preview">
-                    <img src="/api/frame/${encodeURIComponent(r.video_id)}/${r.frame_idx}"
-                         onerror="this.style.display='none';this.parentElement.textContent='Frame #${r.frame_idx}'"
-                         alt="Frame ${r.frame_idx}" loading="lazy">
-                </div>
-                <div class="card-info">
-                    <div class="video-id">${escapeHtml(r.video_id)}</div>
-                    <div class="frame-meta">
-                        <span>Frame ${r.frame_idx}</span>
-                        <span>${(r.timestamp || 0).toFixed(1)}s</span>
-                    </div>
-                    <div class="scores">
-                        <span class="score-badge">${r.clip_score.toFixed(3)}</span>
-                        <span class="score-badge">${r.siglip2_score.toFixed(3)}</span>
-                        <span class="score-badge best">\u2B50 ${(r.confidence ?? r.final_score ?? 0).toFixed(3)}</span>
-                    </div>
-                    ${r.answer ? `<div class="answer-text"><span class="answer-label">Answer:</span> ${escapeHtml(r.answer)}</div>` : ''}
-                </div>
-            </div>`).join('');
-    }
-
-    window.reRenderQa = function () {
-        if (lastQaData && currentMode === 'qa') {
-            const question = $('qaQuestion').value.trim();
-            renderQa(lastQaData, question);
-            updateCsvExport();
-        }
-    };
-
-    /* ── TRAKE ──────────────────────────────────────────────── */
-
-    let trakeEventCount = 0;
-
-    window.addTrakeEvent = function () {
-        const list = $('trakeEventList');
-        const idx = trakeEventCount++;
-        const row = document.createElement('div');
-        row.className = 'event-row';
-        row.style.marginBottom = '6px';
-        row.innerHTML = `
-            <input type="text" id="trakeEvent_${idx}" placeholder="Event ${idx + 1} description..." style="flex:1">
-            <button class="btn-icon danger" onclick="this.parentElement.remove()" title="Remove">&times;</button>`;
-        list.appendChild(row);
-    };
-    addTrakeEvent();
-    addTrakeEvent();
-    addTrakeEvent();
-
-    window.doTrakeAlign = async function () {
-        const description = $('trakeDescription').value.trim();
-        const topK = parseInt($('trakeTopK').value) || 50;
-        if (!description) return toast('Enter a main description', 'error');
-
-        const events = [];
-        document.querySelectorAll('#trakeEventList .event-row input').forEach(inp => {
-            const v = inp.value.trim();
-            if (v) events.push(v);
-        });
-        if (!events.length) return toast('Add at least one event', 'error');
-        setLoading('trakeAlignBtn', true);
-
-        try {
-            const r = await fetch(API + '/api/trake', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ description, events, top_k: topK }),
-            });
-            if (!r.ok) throw new Error((await r.json()).detail || 'TRAKE failed');
-            const d = await r.json();
-            currentResults = d.results || [];
-            renderTrake(d, events);
-            updateCsvExport();
-        } catch (e) {
-            toast(e.message, 'error');
-        } finally {
-            setLoading('trakeAlignBtn', false);
-        }
-    };
-
-    function renderTrake(data, events) {
-        const p = $('resultsPanel');
-        if (!data.results || !data.results.length) {
-            p.innerHTML = '<div class="empty-state"><div class="icon">\u{1F615}</div><p>No results found</p></div>';
-            return;
-        }
-
-        if (data.event_mapping && Array.isArray(data.event_mapping)) {
-            let mappingHtml = '<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
-            data.event_mapping.forEach((m, i) => {
-                mappingHtml += `<div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:0.78rem;flex:1;min-width:200px">
-                    <div style="color:var(--accent);font-weight:600;margin-bottom:4px">Event ${i + 1}: ${escapeHtml(m.event || events[i] || '')}</div>
-                    <div style="color:var(--text-secondary)">Frame ${m.frame_idx ?? m.best_frame ?? '?'} \u00b7 ${m.video_id ?? ''}</div>
-                </div>`;
-            });
-            mappingHtml += '</div>';
-            p.innerHTML = mappingHtml + data.results.map((r, i) => `
-                <div class="result-card" onclick="openVideoModal('${escapeJs(r.video_id)}',${r.frame_idx},${r.timestamp || 0})">
-                    <div class="frame-preview">
-                        <img src="/api/frame/${encodeURIComponent(r.video_id)}/${r.frame_idx}"
-                             onerror="this.style.display='none';this.parentElement.textContent='Frame #${r.frame_idx}'"
-                             alt="Frame ${r.frame_idx}" loading="lazy">
-                    </div>
-                    <div class="card-info">
-                        <div class="video-id">${escapeHtml(r.video_id)}</div>
-                        <div class="frame-meta">
-                            <span>Frame ${r.frame_idx}</span>
-                            <span>${(r.timestamp || 0).toFixed(1)}s</span>
-                        </div>
-                        <div class="scores">
-                            <span class="score-badge best">\u2B50 ${(r.confidence ?? r.score ?? 0).toFixed(3)}</span>
-                        </div>
-                        ${r.event ? `<div class="answer-text"><span class="answer-label">Event:</span> ${escapeHtml(r.event)}</div>` : ''}
-                    </div>
-                </div>`).join('');
-        } else {
-            p.innerHTML = data.results.map((r, i) => {
-                const eventTimeline = (r.event_frames || []).map((ef, ei) =>
-                    `<div class="timeline-event" onclick="event.stopPropagation();openVideoModal('${escapeJs(r.video_id)}',${ef.frame_idx},0)" title="${escapeHtml(ef.event || 'Event ' + (ei+1))}">
-                        <img src="/api/frame/${encodeURIComponent(r.video_id)}/${ef.frame_idx}" alt="E${ei+1}" loading="lazy" onerror="this.style.display='none'">
-                        <span class="timeline-label">E${ei+1}: F${ef.frame_idx}</span>
-                    </div>`
-                ).join('');
-                return `
-                <div class="result-card trake-card" onclick="openVideoModal('${escapeJs(r.video_id)}',${r.frame_idx},${r.timestamp || 0})">
-                    <div class="frame-preview">
-                        <img src="/api/frame/${encodeURIComponent(r.video_id)}/${r.frame_idx}"
-                             onerror="this.style.display='none';this.parentElement.textContent='Frame #${r.frame_idx}'"
-                             alt="Frame ${r.frame_idx}" loading="lazy">
-                    </div>
-                    <div class="card-info">
-                        <div class="video-id">${escapeHtml(r.video_id)}</div>
-                        <div class="frame-meta">
-                            <span>Frame ${r.frame_idx}</span>
-                            <span>${(r.timestamp || 0).toFixed(1)}s</span>
-                            <span class="score-badge best">\u2B50 ${(r.confidence ?? r.score ?? 0).toFixed(3)}</span>
-                        </div>
-                        ${eventTimeline ? `<div class="event-timeline">${eventTimeline}</div>` : ''}
-                    </div>
-                </div>`;
-            }).join('');
-        }
-    }
-
-    /* ── Results helpers ─────────────────────────────────────── */
-
-    window.clearResults = function () {
-        currentResults = [];
-        csvRows = [];
-        rankRows = [];
-        $('resultsPanel').innerHTML =
-            '<div class="empty-state"><div class="icon">\u{1F50D}</div><p>Select a mode and search to begin</p></div>';
-        renderRankRows();
-    };
-
-    /* ══ Submission ranking editor ═══════════════════════════════ */
-    /* Feature 1: custom download filename   (rankFilename)          */
-    /* Feature 2: manual ranking override    (drag-free: ▲▼ / Set)   */
-    /* Feature 3: batch rank assignment      (video_id, frame, N)    */
-    /* rankRows is the single source of truth; the preview + the     */
-    /* saved text file are just serializations of it.               */
-
-    function getVisibleResults() {
-        let res = currentResults || [];
-        const cb = $('qaIncludeVague');
-        if (currentMode === 'qa' && cb && !cb.checked) {
-            res = res.filter(r => !r.is_vague);
-        }
-        return res;
-    }
-
-    function rowsFromResults(results) {
-        return (results || [])
-            .filter(r => r && r.video_id)
-            .map(r => {
-                const row = { video_id: String(r.video_id), frame_idx: Number(r.frame_idx) || 0 };
-                if (r.answer != null && r.answer !== '') row.answer = String(r.answer);
-                const fr = r.frames || r.aligned_frames;
-                if (Array.isArray(fr) && fr.length) row.frames = fr.map(Number);
-                return row;
-            });
-    }
-
-    function rankToText() {
-        const mode = currentMode;
-        const lines = [];
-        for (const r of rankRows) {
-            const vid = String(r.video_id || '').trim();
-            if (!vid) continue;
-            if (mode === 'trake') {
-                const fr = (r.frames && r.frames.length ? r.frames : [r.frame_idx])
-                    .filter(x => x !== '' && x != null);
-                lines.push(`${vid}, ${fr.join(', ')}`);
-            } else if (mode === 'qa') {
-                const ans = String(r.answer || '').replace(/"/g, '""');
-                lines.push(`${vid}, ${r.frame_idx ?? 0}, "${ans}"`);
-            } else {
-                lines.push(`${vid}, ${r.frame_idx ?? 0}`);
-            }
-        }
-        return lines.join('\n');
-    }
-
-    function refreshPreview() { $('csvExportText').value = rankToText(); }
-
-    function renderRankRows() {
-        const box = $('rankRowsList');
-        if (!box) return;
-        if (!rankRows.length) {
-            box.innerHTML = '<div class="rank-empty">No rows yet — run a search, click “From results”, or use the tools above.</div>';
-            refreshPreview();
-            return;
-        }
-        const mode = currentMode;
-        box.innerHTML = rankRows.map((r, i) => {
-            const vid = escapeHtml(r.video_id || '');
-            const frameField = mode === 'trake'
-                ? `<input type="text" data-i="${i}" data-f="frames" value="${escapeHtml((r.frames && r.frames.length ? r.frames : [r.frame_idx]).join(','))}" title="comma-separated frame indices">`
-                : `<input type="number" min="0" data-i="${i}" data-f="frame_idx" value="${r.frame_idx ?? 0}">`;
-            const thumbFrame = (r.frames && r.frames.length) ? r.frames[0] : r.frame_idx;
-            const thumb = (r.video_id && thumbFrame != null && thumbFrame !== '')
-                ? `<img src="/api/frame/${encodeURIComponent(r.video_id)}/${thumbFrame}" loading="lazy" onerror="this.style.display='none'">`
-                : '';
-            const answerField = mode === 'qa'
-                ? `<input type="text" data-i="${i}" data-f="answer" placeholder="answer" value="${escapeHtml(r.answer || '')}" style="grid-column:1/-1">`
-                : '';
-            return `<div class="rank-row">
-                <div class="rk">${i + 1}</div>
-                <div class="thumb">${thumb}</div>
-                <input type="text" data-i="${i}" data-f="video_id" value="${vid}" title="video_id">
-                ${frameField}
-                <div class="row-actions">
-                    <button type="button" data-act="up" data-i="${i}" title="Move up">▲</button>
-                    <button type="button" data-act="down" data-i="${i}" title="Move down">▼</button>
-                    <button type="button" class="del" data-act="del" data-i="${i}" title="Remove">✕</button>
-                </div>
-                ${answerField}
-            </div>`;
-        }).join('');
-        refreshPreview();
-    }
-
-    $('rankRowsList').addEventListener('input', e => {
-        const el = e.target;
-        if (!el || el.tagName !== 'INPUT') return;
-        const i = parseInt(el.dataset.i, 10);
-        const f = el.dataset.f;
-        if (isNaN(i) || !rankRows[i] || !f) return;
-        if (f === 'frame_idx') {
-            rankRows[i].frame_idx = el.value === '' ? '' : parseInt(el.value, 10);
-        } else if (f === 'frames') {
-            rankRows[i].frames = el.value.split(',').map(s => s.trim()).filter(s => s !== '').map(Number);
-        } else {
-            rankRows[i][f] = el.value;
-        }
-        refreshPreview();
-    });
-
-    $('rankRowsList').addEventListener('click', e => {
-        const btn = e.target.closest('button[data-act]');
-        if (!btn) return;
-        const i = parseInt(btn.dataset.i, 10);
-        const act = btn.dataset.act;
-        if (isNaN(i) || !rankRows[i]) return;
-        if (act === 'del') rankRows.splice(i, 1);
-        else if (act === 'up' && i > 0) { const t = rankRows[i - 1]; rankRows[i - 1] = rankRows[i]; rankRows[i] = t; }
-        else if (act === 'down' && i < rankRows.length - 1) { const t = rankRows[i + 1]; rankRows[i + 1] = rankRows[i]; rankRows[i] = t; }
-        renderRankRows();
-    });
-
-    function updateCsvExport() {
-        rankRows = rowsFromResults(getVisibleResults());
-        renderRankRows();
-    }
-
-    window.buildTkisCsv = function () {
-        if (!currentResults.length) return toast('No results yet', 'error');
-        updateCsvExport();
-        toast('Ranking built from results', 'ok');
-    };
-
-    window.loadRankFromResults = function () {
-        if (!currentResults.length) return toast('No search results to load', 'error');
-        updateCsvExport();
-        toast('Loaded ' + rankRows.length + ' rows from results', 'ok');
-    };
-
-    window.toggleRankPanel = function () {
-        const p = $('csvExportPanel');
-        p.classList.toggle('collapsed');
-        $('rankToggle').textContent =
-            (p.classList.contains('collapsed') ? '▸' : '▾') + ' Submission ranking';
-    };
-
-    window.applyOverrideRow = function () {
-        const vid = $('ovVideoId').value.trim();
-        const fRaw = $('ovFrameIdx').value.trim();
-        const rankRaw = $('ovRank').value.trim();
-        if (!vid) return toast('Enter a video_id', 'error');
-        if (fRaw === '') return toast('Enter a frame_id', 'error');
-        const frame = parseInt(fRaw, 10);
-        if (isNaN(frame)) return toast('frame_id must be a number', 'error');
-        // Drop any existing row for the same (video_id, frame) so this acts as "move to".
-        rankRows = rankRows.filter(r => !(String(r.video_id).trim() === vid && Number(r.frame_idx) === frame));
-        let pos;
-        if (rankRaw === '') {
-            pos = rankRows.length;
-        } else {
-            pos = parseInt(rankRaw, 10) - 1;
-            if (isNaN(pos) || pos < 0) pos = 0;
-            if (pos > rankRows.length) pos = rankRows.length;
-        }
-        rankRows.splice(pos, 0, { video_id: vid, frame_idx: frame });
-        renderRankRows();
-        toast(`${vid} #${frame} → Top ${pos + 1}`, 'ok');
-    };
-
-    window.applyBatchAssign = function () {
-        const vid = $('batchVideoId').value.trim();
-        const base = parseInt($('batchFrameIdx').value, 10);
-        const step = parseInt($('batchStep').value, 10);
-        let count = parseInt($('batchCount').value, 10);
-        if (!vid) return toast('Enter a video_id', 'error');
-        if (isNaN(base)) return toast('Enter a base frame_id', 'error');
-        if (isNaN(step)) return toast('Enter a step N', 'error');
-        if (isNaN(count) || count < 1) count = 10;
-        if (count > 100) count = 100;
-        const gen = [];
-        for (let i = 0; i < count; i++) gen.push({ video_id: vid, frame_idx: base + i * step });
-        rankRows = gen.concat(rankRows.slice(count));
-        renderRankRows();
-        toast(`Generated Top 1–${count}: ${vid} @ ${base} step ${step}`, 'ok');
-    };
-
-    window.copyCsv = function () {
-        const text = rankToText();
-        if (!text) return toast('Nothing to copy', 'error');
-        navigator.clipboard.writeText(text)
-            .then(() => toast('Copied ' + text.split('\n').length + ' rows', 'ok'))
-            .catch(() => toast('Clipboard unavailable', 'error'));
-    };
-
-    function resolveRankName() {
-        let name = ($('rankFilename').value || '').trim() ||
-            (DEFAULT_RANK_NAME[currentMode] || 'competition.txt');
-        return name.replace(/[\\/]+/g, '_');
-    }
-
-    window.downloadCsv = function () {
-        const text = rankToText();
-        if (!text) return toast('Nothing to download', 'error');
-        let name = resolveRankName();
-        if (!/\.(txt|csv)$/i.test(name)) name += '.txt';
-        const blob = new Blob([text + '\n'], { type: 'text/plain;charset=utf-8;' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = name;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-        toast('Downloaded ' + name, 'ok');
-    };
-
-    window.saveRankingToFile = async function () {
-        if (!rankRows.length) return toast('Nothing to save', 'error');
-        const name = resolveRankName();
-        try {
-            const r = await fetch(API + '/api/ranking/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, mode: currentMode, rows: rankRows }),
-            });
-            const d = await r.json();
-            if (!r.ok) throw new Error(d.detail || 'Save failed');
-            $('rankFilename').value = d.name;
-            await refreshSavedRankings();
-            $('rankSavedList').value = d.name;
-            toast(`Saved ${d.rows_written} rows → submission/${d.name}`, 'ok');
-        } catch (e) {
-            toast(e.message, 'error');
-        }
-    };
-
-    async function refreshSavedRankings() {
-        try {
-            const r = await fetch(API + '/api/ranking/list');
-            if (!r.ok) return;
-            const d = await r.json();
-            const sel = $('rankSavedList');
-            const cur = sel.value;
-            sel.innerHTML = '<option value="">Load saved…</option>' +
-                (d.files || []).map(f =>
-                    `<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)} (${f.rows})</option>`).join('');
-            if (cur) sel.value = cur;
-        } catch (e) { /* offline — ignore */ }
-    }
-
-    window.loadSavedRanking = async function () {
-        const name = $('rankSavedList').value;
-        if (!name) return;
-        try {
-            const r = await fetch(API + '/api/ranking/load?name=' + encodeURIComponent(name));
-            const d = await r.json();
-            if (!r.ok) throw new Error(d.detail || 'Load failed');
-            rankRows = (d.rows || []).map(row => {
-                const out = { video_id: row.video_id, frame_idx: row.frame_idx ?? 0 };
-                if (row.answer != null) out.answer = row.answer;
-                if (Array.isArray(row.frames) && row.frames.length) out.frames = row.frames;
-                return out;
-            });
-            $('rankFilename').value = d.name || name;
-            $('csvExportPanel').classList.remove('collapsed');
-            $('rankToggle').textContent = '▾ Submission ranking';
-            renderRankRows();
-            toast(`Loaded ${rankRows.length} rows from ${name}`, 'ok');
-        } catch (e) {
-            toast(e.message, 'error');
-        }
-    };
-
-    /* ── Video modal ────────────────────────────────────────── */
-
-    window.openVideoModal = function (videoId, frameIdx, timestamp) {
-        videoModalState = { videoId, frameIdx, timestamp: Number(timestamp) || 0, fps: 25 };
-        const modal = $('videoModal');
-        const player = $('videoPlayer');
-        $('videoModalTitle').textContent = videoId + ' \u00b7 frame ' + frameIdx;
-        $('videoModalMeta').textContent = 'Loading video...';
-        $('frameOverlay').textContent = 'Frame ' + frameIdx;
-        $('replayBtn').textContent = 'Play frame ' + frameIdx;
-
-        player.pause();
-        player.removeAttribute('src');
-        player.load();
-
-        player.ontimeupdate = function () {
-            const cur = Math.round(player.currentTime * videoModalState.fps);
-            $('frameOverlay').textContent = 'Frame ' + cur;
-        };
-
-        player.onloadedmetadata = function () {
-            player.onloadedmetadata = null;
-            $('videoModalMeta').textContent = 'Frame ' + frameIdx + ' \u00b7 Click "Play frame" to start';
-        };
-
-        player.src = API + '/api/video/' + encodeURIComponent(videoId) + '?v=' + Date.now();
-        modal.classList.add('open');
-
-        fetch(API + '/api/video/' + encodeURIComponent(videoId) + '/info')
-            .then(r => r.ok ? r.json() : null)
-            .then(info => {
-                if (info) {
-                    videoModalState.fps = info.fps || 25;
-                    if (!videoModalState.timestamp && frameIdx >= 0) {
-                        videoModalState.timestamp = frameIdx / videoModalState.fps;
-                    }
-                }
-            })
-            .catch(() => {});
-    };
-
-    window.closeVideoModal = function () {
-        const player = $('videoPlayer');
-        player.pause();
-        player.ontimeupdate = null;
-        player.removeAttribute('src');
-        player.load();
-        $('videoModal').classList.remove('open');
-    };
-
-    window.seekVideoRelative = function (delta) {
-        const player = $('videoPlayer');
-        player.currentTime = Math.max(0, player.currentTime + delta);
-        const cur = Math.round(player.currentTime * videoModalState.fps);
-        $('frameOverlay').textContent = 'Frame ' + cur;
-    };
-
-    window.replayAtFrame = function () {
-        let t = videoModalState.timestamp;
-        if (!t && videoModalState.fps > 0) t = videoModalState.frameIdx / videoModalState.fps;
-        t = Math.max(0, t);
-        const player = $('videoPlayer');
-        $('frameOverlay').textContent = 'Frame ' + videoModalState.frameIdx;
-
-        function doSeek() {
-            player.pause();
-            player.currentTime = t;
-            player.onseeked = function () {
-                player.onseeked = null;
-                player.currentTime = t;
-                player.play().catch(() => {});
-            };
-        }
-
-        if (player.readyState >= 2) {
-            doSeek();
-        } else {
-            player.oncanplay = function () {
-                player.oncanplay = null;
-                doSeek();
-            };
-        }
-    };
-
-    /* ── Keyboard shortcuts ─────────────────────────────────── */
-
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') closeVideoModal();
-    });
-
-    /* ── Init ───────────────────────────────────────────────── */
-
-    checkStatus();
-    setInterval(checkStatus, 30000);
-
-    syncDefaultRankName();
-    renderRankRows();
-    refreshSavedRankings();
-
+(async function init() {
+  applyCfg(); renderAll();
+  try {
+    S.status = await api('/api/status', {}, 8000);
+    S.legacy = !('ready' in S.status);          // the old /api/status has no `ready` field
+    if (S.status.dres_base_url && !S.dres.base_url) S.dres.base_url = S.status.dres_base_url;
+  } catch (e) { setError(e.message); }
+  await refreshDres();
+  if (S.status && S.status.ready === false) setError('Server đang nạp mô hình / index… đợi vài chục giây rồi tìm lại.');
+  else if (S.status && !S.legacy) setStatus(el('span', {}, 'Index: ', el('b', {}, (S.status.frames || 0).toLocaleString('vi')), ' khung · ', el('b', {}, (S.status.videos || 0).toLocaleString('vi')), ' video'));
+  $('#qtext')?.focus();
+  setInterval(() => { if (!document.hidden) refreshDres(); }, 15000);      // the server keeps the DRES session alive; just show its state
 })();
 </script>
 </body>

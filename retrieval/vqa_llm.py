@@ -209,7 +209,7 @@ async def _default_frame_loader(video_id: str, frame_idx: int) -> Optional[bytes
     """Decode a single frame from the source video on disk."""
     try:
         import cv2
-        from api.app import resolve_video_path
+        from api.app_legacy import resolve_video_path
 
         path = resolve_video_path(video_id)
         if not path:

@@ -233,6 +233,46 @@ class Settings(BaseSettings):
     MAX_ROWS: int = 100
     AUTO_INGEST_LOCAL_DATA: bool = True
 
+    # ---------------- Lean PE-Core-only engine (final round) ----------------
+    # Compact frame index built by scripts/build_index.py (emb.npy fp16 + tables).
+    # Keep it OFF the flaky external drive: set INDEX_DIR in .env.
+    INDEX_DIR: Path = DATA_DIR / "index"
+    # Keyframe JPEG folders for thumbnails, ';'-separated, searched in order. A frame
+    # in none of them falls back to its nearest indexed keyframe, then to the video.
+    KEYFRAME_DIRS: str = ""
+    THUMB_WIDTH: int = 384
+    THUMB_CACHE_ITEMS: int = 6000
+
+    # Text side. PE-Core is English-only, so Vietnamese is translated first (on GPU).
+    TRANSLATE_DEVICE: str = "auto"          # "auto" = GPU when available
+    TRANSLATE_NUM_BEAMS: int = 3
+    TRANSLATE_MAX_TOKENS: int = 96
+
+    # KIS / Q&A listing: best frame per (video, window) so the grid is not 40
+    # near-identical neighbours of one hit.
+    RESULT_TOP_K: int = 60
+    RESULT_NMS_SEC: float = 6.0
+    # TRAKE
+    TRAKE_SHORTLIST: int = 30               # videos aligned after sub-event ranking
+    TRAKE_ALT_FRAMES: int = 8               # per-event alternatives offered for hand-correction
+    TRAKE_ALT_MIN_SEC: float = 1.5          # alternatives must be this far apart in time
+    # "frame" = original frame index, "ms" = milliseconds. UI can override.
+    TRAKE_FRAME_ID_MODE: str = "frame"
+
+    # ---------------- DRES (submission server) ----------------
+    DRES_BASE_URL: str = "https://eventretrieval.one"
+    DRES_TIMEOUT_SEC: float = 10.0
+    DRES_LOG_PATH: Path = PROJECT_ROOT / "submission" / "dres_log.jsonl"
+    # The DRES endpoints can submit as the team, so they only answer this machine
+    # unless you explicitly allow other hosts (e.g. a second laptop on the LAN).
+    DRES_ALLOW_REMOTE: bool = False
+    # Staying logged in: the session (never the password) is saved here so restarting the server keeps it.
+    DRES_STATE_PATH: Path = PROJECT_ROOT / "submission" / "dres_session.json"
+    # Optional: log in automatically at startup and again whenever DRES drops the session.
+    DRES_USERNAME: str = ""
+    DRES_PASSWORD: str = ""
+    DRES_KEEPALIVE_SEC: float = 30.0
+
     # ---------------- GPU ----------------
     GPU_ENABLED: bool = True
     GPU_DEVICE_ID: int = 0
