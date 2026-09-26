@@ -66,12 +66,7 @@ class FastTranslator(VietnameseEnglishTranslator):
                                           max_length=self.max_length)
                     if self.device and str(self.device).startswith("cuda"):
                         enc = {k: v.to(self.device) for k, v in enc.items()}
-                    kw = {"max_new_tokens": self.max_length, "max_length": None}
-                    if self._forced_bos_token_id is not None:
-                        kw["forced_bos_token_id"] = self._forced_bos_token_id
-                    if self.num_beams and self.num_beams > 1:
-                        kw["num_beams"] = self.num_beams
-                    gen = self._model.generate(**enc, **kw)
+                    gen = self._model.generate(**enc, **self._gen_kwargs())
                     dec = self._tokenizer.batch_decode(gen, skip_special_tokens=True)
                 for src, en in zip(batch, dec):
                     if len(self._cache) >= self._cache_max:
