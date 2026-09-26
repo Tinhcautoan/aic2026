@@ -67,6 +67,7 @@ class VietnameseEnglishTranslator:
         self._tokenizer = None
         self._model = None
         self._forced_bos_token_id = None
+        self._start_kwargs: dict = {}     # how generation is pointed at English (see _detect_forced_bos)
         self._failed = False
         self._lock = threading.Lock()
         self._cache: dict = {}        # text -> translated text (avoid re-translating)
@@ -84,10 +85,14 @@ class VietnameseEnglishTranslator:
                 return False
             try:
                 logger.info(f"Loading vi->en translation model {self.model_name} ...")
-                from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+                from transformers import AutoConfig, AutoModelForSeq2SeqLM, AutoTokenizer
 
                 model_path = self.model_dir or self.model_name
-                self._tokenizer = AutoTokenizer.from_pretrained(model_path)
+                model_type = getattr(AutoConfig.from_pretrained(model_path), "model_type", None)
+                # The tokenizer must know the SOURCE language: mBART prefixes the input with its language code, and
+                # the default (en_XX) makes the VinAI model see Vietnamese as English -> "biggest biggest biggest ..."
+                src_lang = {"mbart": "vi_VN", "m2m_100": "vie_Latn", "nllb": "vie_Latn"}.get(model_type)
+                self._tokenizer = AutoTokenizer.from_pretrained(model_path, **({"src_lang": src_lang} if src_lang else {}))
                 self._model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
                 if self.device and str(self.device).startswith("cuda"):
                     self._model = self._model.to(self.device).half()
@@ -95,6 +100,10 @@ class VietnameseEnglishTranslator:
 
                 # Force the decoder to emit English regardless of input language.
                 self._forced_bos_token_id = self._detect_forced_bos()
+                if self._forced_bos_token_id is not None:
+                    # VinAI's model card starts the decoder WITH en_XX (decoder_start_token_id); NLLB/M2M100 use forced_bos
+                    key = "decoder_start_token_id" if model_type == "mbart" else "forced_bos_token_id"
+                    self._start_kwargs = {key: self._forced_bos_token_id}
 
                 logger.info("vi->en translation model loaded")
                 return True
@@ -130,6 +139,20 @@ class VietnameseEnglishTranslator:
                 return None
         return None
 
+    def _gen_kwargs(self) -> dict:
+        kw = {
+            "max_new_tokens": self.max_length,
+            # Override the model's generation_config (mBART ships max_length=1024) so transformers doesn't warn
+            # about both max_new_tokens and max_length being set.
+            "max_length": None,
+            "no_repeat_ngram_size": 3,       # guard: a query never needs the same 3 words twice
+            **self._start_kwargs,
+        }
+        if self.num_beams and self.num_beams > 1:
+            kw["num_beams"] = self.num_beams
+            kw["early_stopping"] = True
+        return kw
+
     def translate(self, text: str) -> str:
         if not self._load():
             return text
@@ -147,18 +170,7 @@ class VietnameseEnglishTranslator:
                     )
                     if self.device and str(self.device).startswith("cuda"):
                         encoded = {k: v.to(self.device) for k, v in encoded.items()}
-                    gen_kwargs = {
-                        "max_new_tokens": self.max_length,
-                        # Override the model's generation_config (mBART ships
-                        # max_length=1024) so transformers doesn't warn about
-                        # both max_new_tokens and max_length being set.
-                        "max_length": None,
-                    }
-                    if self._forced_bos_token_id is not None:
-                        gen_kwargs["forced_bos_token_id"] = self._forced_bos_token_id
-                    if self.num_beams and self.num_beams > 1:
-                        gen_kwargs["num_beams"] = self.num_beams
-                    generated = self._model.generate(**encoded, **gen_kwargs)
+                    generated = self._model.generate(**encoded, **self._gen_kwargs())
                 out = self._tokenizer.batch_decode(
                     generated, skip_special_tokens=True,
                 )[0].strip()

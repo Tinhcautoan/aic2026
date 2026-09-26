@@ -8,6 +8,7 @@ open_clip_torch==3.3.0
 timm==1.0.28
 transformers>=5.15,<6
 sentencepiece>=0.2
+protobuf>=4.21            # needed with sentencepiece to read the translator's tokenizer (else transformers falls back to tiktoken and fails)
 sacremoses>=0.1
 huggingface_hub>=1.0
 fastapi>=0.115
