@@ -316,7 +316,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
     </div>
     <video id="vVideo" controls preload="metadata" playsinline></video>
     <img id="vFrame" class="vframe" alt="keyframe" hidden>
-    <div class="vmsg" id="vMsg" hidden></div>
+    <div class="vmsg" id="vMsg" hidden><span id="vMsgText"></span> <button class="btn" id="vRetry" type="button">▶ Thử lại video</button></div>
     <div class="vfetch" id="vFetch" hidden>
       <button class="btn primary" id="vFetchBtn">⬇ Tải video này về máy</button>
       <div class="bar" id="vFetchBarBox" hidden><i id="vFetchBar"></i></div>
@@ -966,14 +966,25 @@ async function openViewer(it) {
   // The video is a convenience, the keyframe is the fallback: any failure (file missing, drive dropped, codec, too slow)
   // swaps the player for the big keyframe of the selected moment.
   $('#vFrame').hidden = true; vid.hidden = false;
-  const fallback = why => {
+  // A slow video (remote server) only gets a placeholder: it keeps loading and takes over as soon as it can play.
+  const fallback = (why, stillLoading) => {
     if (!dlg.open || vctx !== ctx) return;
-    showKeyframe(ctx.video_id, ctx.frame_idx); msg.hidden = false; msg.textContent = why + ' → đang hiện keyframe thay cho video.';
+    showKeyframe(ctx.video_id, ctx.frame_idx); msg.hidden = false;
+    $('#vMsgText').textContent = why + (stillLoading ? ' → tạm hiện keyframe, video vẫn đang tải và sẽ tự hiện khi sẵn sàng.'
+                                                      : ' → đang hiện keyframe thay cho video.');
+  };
+  const showPlayer = () => {                   // the video became playable (possibly long after the placeholder)
+    if (vctx !== ctx || vid.error) return;
+    clearTimeout(viewerTimer);
+    if (!vid.hidden) return;
+    if (Math.abs(vid.currentTime * 1000 - ctx.ms) > 300) vid.currentTime = Math.max(0, ctx.ms / 1000);   // the moment picked meanwhile
+    $('#vFrame').hidden = true; vid.hidden = false; msg.hidden = true;
   };
   vid.onloadedmetadata = () => { if (vctx === ctx) vid.currentTime = Math.max(0, ctx.ms / 1000); };
-  vid.onloadeddata = () => clearTimeout(viewerTimer);
-  vid.onerror = () => fallback('Không phát được video (chưa có file trên máy, lỗi ổ đĩa hoặc codec)');
-  viewerTimer = setTimeout(() => { if (vid.readyState < 2) fallback('Video tải quá chậm'); }, 6000);
+  vid.onloadeddata = showPlayer;
+  vid.oncanplay = showPlayer;
+  vid.onerror = () => { clearTimeout(viewerTimer); fallback('Không phát được video (chưa có file trên máy, lỗi ổ đĩa hoặc codec)', false); };
+  viewerTimer = setTimeout(() => { if (vid.readyState < 2) fallback('Video tải chậm', true); }, 6000);
   vid.ontimeupdate = () => { if (vctx !== ctx || vid.hidden) return; ctx.ms = Math.round(vid.currentTime * 1000); ctx.frame_idx = msToFrame(ctx.ms, ctx.fps); syncMsBox(false); };
   vid.src = `/api/video/${encodeURIComponent(it.video_id)}`;
   if (trake) ensureTrakeSel(it.video_id, fps0);
@@ -1024,6 +1035,14 @@ function pollFetch(id) {
       + (st.attempt > 1 ? ` · thử lần ${st.attempt}` : '');
   };
   fetchPoll = setInterval(tick, 1000); tick();
+}
+function retryVideo() {
+  if (!vctx) return;
+  const vid = $('#vVideo'), ms = vctx.ms;
+  $('#vMsgText').textContent = 'Đang tải lại video… (tạm hiện keyframe)';
+  vid.src = `/api/video/${encodeURIComponent(vctx.video_id)}?r=${Date.now()}`;
+  vid.load();
+  vctx.ms = ms;
 }
 function reloadPlayer() {
   const vid = $('#vVideo');
@@ -1328,6 +1347,7 @@ $('#vFr').addEventListener('change', e => seekFrame(+e.target.value));
 $('#vFr').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); seekFrame(+e.target.value); } });
 $('#vMs').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const v = Math.round(+e.target.value); if (Number.isFinite(v)) seekTo(v); } });
 $('#vFetchBtn').addEventListener('click', startFetch);
+$('#vRetry').addEventListener('click', retryVideo);
 $('#vStripBtn').addEventListener('click', () => loadStrip());
 $('#tkClear').addEventListener('click', () => { if (S.sel && S.sel.kind === 'trake') { S.sel.chosen = []; onChosenChanged(); } });
 $('#tkReset').addEventListener('click', () => {
